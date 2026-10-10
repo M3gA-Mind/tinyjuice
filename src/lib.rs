@@ -17,7 +17,6 @@ mod error;
 pub mod host;
 pub mod live_zone;
 pub mod llm;
-pub mod ml;
 pub mod observability;
 pub mod openhuman;
 pub mod pipeline;

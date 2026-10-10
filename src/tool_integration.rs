@@ -65,7 +65,6 @@ fn options_for_agent(profile: AgentTokenjuiceCompression) -> Result<CompressOpti
             // lossless reduction is still allowed.
             opts.ccr_enabled = false;
             opts.lossy_without_ccr = false;
-            opts.ml_text_enabled = false;
             Ok(opts)
         }
     }

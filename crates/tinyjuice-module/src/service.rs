@@ -235,26 +235,6 @@ async fn compact_request(request: CompactRequest) -> CompactResponse {
 }
 
 async fn setup(connection: Connection) -> BusResult<()> {
-    let ml_connection = connection.clone();
-    tinyjuice::ml::configure_callback(Some(Arc::new(move |text, options| {
-        let connection = ml_connection.clone();
-        Box::pin(async move {
-            let proxy = connection
-                .proxy(ML_HOST_NAME, ML_HOST_PATH, ML_HOST_NAME)
-                .map_err(|error| error.to_string())?;
-            proxy
-                .call(
-                    ml_host::COMPRESS,
-                    (
-                        text,
-                        serde_json::to_value(options).map_err(|error| error.to_string())?,
-                    ),
-                )
-                .await
-                .map_err(|error| error.to_string())
-        })
-    })));
-
     // The summary stage's model call goes to the same host object: the module
     // writes the prompt, the host owns the model and the turn it runs under.
     let llm_connection = connection.clone();

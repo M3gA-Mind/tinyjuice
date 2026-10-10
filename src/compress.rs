@@ -555,7 +555,7 @@ fn try_typed_route(
             run_typed_pipeline(pipeline_input, &reformats, &offloads, store)
         }
         ContentKind::PlainText => {
-            if opts.ml_text_enabled || !ccr_for_call {
+            if !ccr_for_call {
                 return None;
             }
             let transform = input

@@ -27,9 +27,7 @@ pub enum ToolPrior {
 pub fn tool_prior(tool_name: &str) -> ToolPrior {
     match tool_name {
         "grep" | "glob_search" | "ripgrep" | "rg" => ToolPrior::Search,
-        "run_tests" | "run_linter" | "npm_exec" | "node_exec" | "install_tool" | "lsp" => {
-            ToolPrior::Log
-        }
+        "run_tests" | "run_linter" | "install_tool" | "lsp" => ToolPrior::Log,
         "read_diff" | "git_operations" => ToolPrior::Diff,
         _ => ToolPrior::Auto,
     }
