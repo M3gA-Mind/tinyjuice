@@ -322,8 +322,8 @@ pub async fn route_with_store_report_shell_policy(
         Some(c) => c.compress(&input, opts).await,
         None => None,
     };
-    // When the specialised compressor declines (including plain text with the
-    // ML compressor off), fall back to the generic head/tail path. It runs the
+    // When the specialised compressor declines, fall back to the generic
+    // head/tail path. It runs the
     // rule engine for *command* output (so e.g. `git status` still compacts even
     // though it carries no log signal) and declines for domain-tool payloads.
     if produced.is_none() {

@@ -32,8 +32,8 @@ pub trait Compressor: Send + Sync {
 
     /// Compress `input`. Return `None` to decline (the router passes the
     /// original through). `Some` carries the compacted body and whether data
-    /// was dropped. Async so the ML compressor can talk to its Python sidecar
-    /// without a blocking bridge; native compressors complete synchronously.
+    /// was dropped. Async so compressors can perform asynchronous work while
+    /// native compressors complete synchronously.
     async fn compress(
         &self,
         input: &CompressInput<'_>,

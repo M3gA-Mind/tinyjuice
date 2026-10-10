@@ -1,7 +1,6 @@
 //! Generic line-oriented fallback compressor.
 //!
-//! Used by the router when a specialised compressor declines (or the ML text
-//! compressor is unavailable). It runs the rule engine's `generic/fallback`
+//! Used by the router when a specialised compressor declines. It runs the rule engine's `generic/fallback`
 //! head/tail summariser — but **only for command output**. For domain-tool
 //! payloads (no derived command/argv) it declines, preserving the long-standing
 //! guard that large structured tool results must reach the downstream

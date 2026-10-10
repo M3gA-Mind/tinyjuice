@@ -1,4 +1,4 @@
-//! Structural tag protection for the lossy ML text compressor.
+//! Structural tag protection for lossy text compression.
 //!
 //! Clean-room implementation inspired by Headroom's tag-preservation
 //! approach (Apache-2.0) — no code copied, only the idea: agent transcripts
