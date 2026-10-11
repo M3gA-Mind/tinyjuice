@@ -7,10 +7,15 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SavingsBucket {
+    /// Number of compactions that reduced the estimated token count.
     pub events: u64,
+    /// Sum of estimated tokens before compaction.
     pub original_tokens: u64,
+    /// Sum of estimated tokens after compaction.
     pub compacted_tokens: u64,
+    /// Sum of positive pre/post token differences.
     pub tokens_saved: u64,
+    /// Estimated cost of the dropped input tokens using host-provided prices.
     pub cost_saved_usd: f64,
 }
 

@@ -109,3 +109,29 @@ response characters, `max_line_chars=240` characters per returned line, and
 narrow these values but cannot enlarge the module's stock ceilings. Grep keeps
 matching lines before allocating remaining context slots. An explicit summary
 `max_chars` also bounds a model-failure notice combined with its overview.
+
+## Model-attributed savings (contract 2.1)
+
+The module owns aggregation and best-effort JSON snapshot persistence. Hosts
+link only `tinyjuice-bus::savings` and call these members:
+
+- `ConfigureSavings(snapshot_path: String) -> ()` loads the snapshot once per
+  path. Repeating the same path preserves current in-memory totals.
+- `RecordSavings(RecordSavingsRequest) -> ()` records a positive token saving.
+  The host supplies the attribution model, compressor identifier, pre/post
+  token estimates, and its catalog lookup of the input price per million
+  tokens. `None` records token savings with zero estimated dollar savings.
+- `SavingsStats() -> SavingsAggregate` returns total, model, and compressor
+  breakdowns in the existing camelCase dashboard/snapshot format.
+- `ResetSavings() -> ()` clears the totals and persists an empty snapshot.
+
+The ledger does not call a hosted pricing service or depend on a host cost
+catalog. A pricing callback remains host-owned; its result crosses the bus in
+`RecordSavingsRequest::input_per_mtok_usd`. Invalid prices are unpriced.
+Counts are estimates, not provider-measured usage. The `SavingsRecord` event
+callback surface remains available separately for richer accounting.
+
+The snapshot path is trusted host configuration, like the cache disk root.
+Missing or malformed snapshots retain the current totals, matching the former
+OpenHuman ledger. Switching paths does not create an isolated per-user ledger;
+hosts requiring that isolation must use separate module instances or reset.

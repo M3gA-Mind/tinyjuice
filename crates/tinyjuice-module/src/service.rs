@@ -297,7 +297,11 @@ mod exports {
             "Repl",
             "Query",
             "ExtractHtml",
-            "CacheStats"
+            "CacheStats",
+            "ConfigureSavings",
+            "RecordSavings",
+            "SavingsStats",
+            "ResetSavings"
         ],
         signals = [],
         requires = [],
