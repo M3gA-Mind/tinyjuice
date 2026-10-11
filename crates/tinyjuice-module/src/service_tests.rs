@@ -300,3 +300,58 @@ async fn savings_service_records_persists_and_resets_totals() {
     Compression.reset_savings().await.unwrap();
     assert_eq!(Compression.savings_stats().await.unwrap().total.events, 0);
 }
+
+#[derive(Clone)]
+struct SummaryHost;
+
+#[tinybus::interface(name = "ai.tinyhumans.tinyjuice.MlHost")]
+impl SummaryHost {
+    async fn generate(&self, request: GenerateRequest) -> BusResult<Option<String>> {
+        assert_eq!(request.prompt, "summarize this artifact");
+        Ok(Some("host summary".into()))
+    }
+}
+
+#[tokio::test]
+async fn setup_serves_detection_and_forwards_model_calls_to_the_host() {
+    use tinybus::broker::Broker;
+    use tinybus::transport::memory::MemoryBus;
+    let bus = MemoryBus::new();
+    let broker_task = Broker::new().spawn(bus.clone());
+    let host = Connection::connect(bus.connect().await.unwrap())
+        .await
+        .unwrap();
+    host.serve_at(ML_HOST_PATH.try_into().unwrap(), SummaryHost)
+        .await
+        .unwrap();
+    host.request_name(ML_HOST_NAME).await.unwrap();
+    let module = Connection::connect(bus.connect().await.unwrap())
+        .await
+        .unwrap();
+    setup(module).await.unwrap();
+    let proxy = host.proxy(BUS_NAME, OBJECT_PATH, BUS_NAME).unwrap();
+    let detected: String = proxy
+        .call(
+            "Detect",
+            (
+                "sample".to_string(),
+                ContentHint {
+                    explicit: Some(tinyjuice::types::ContentKind::Log),
+                    ..Default::default()
+                },
+            ),
+        )
+        .await
+        .unwrap();
+    assert_eq!(detected, "log");
+    let request: GenerateRequest = serde_json::from_value(serde_json::json!({
+        "prompt": "summarize this artifact", "contextToken": "turn", "maxTokens": 100
+    }))
+    .unwrap();
+    assert_eq!(
+        tinyjuice::llm::generate(request).await.unwrap(),
+        Some("host summary".into())
+    );
+    tinyjuice::llm::configure_callback(None);
+    broker_task.abort();
+}
