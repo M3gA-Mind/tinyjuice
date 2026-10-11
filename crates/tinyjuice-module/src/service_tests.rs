@@ -129,7 +129,13 @@ async fn service_detects_compacts_and_reads_ranges() {
     let service = Compression;
     assert_eq!(
         service
-            .detect("{}".into(), ContentHint::default())
+            .detect(
+                "{}".into(),
+                ContentHint {
+                    explicit: Some(tinyjuice::types::ContentKind::Json),
+                    ..Default::default()
+                }
+            )
             .await
             .unwrap(),
         "json"

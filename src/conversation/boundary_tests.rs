@@ -255,3 +255,38 @@ fn generated_tool_history(
     }
     messages
 }
+
+#[test]
+fn sanitizing_calls_keeps_completed_pairs_and_visible_text() {
+    let calls = ConversationMessage::AssistantToolCalls {
+        text: Some("working".into()),
+        tool_calls: vec![
+            ToolCall::new("kept", "read", "{}"),
+            ToolCall::new("orphan", "read", "{}"),
+        ],
+        metadata: Some(serde_json::json!({"turn": 1})),
+    };
+    let messages = vec![
+        calls,
+        ConversationMessage::tool_results(vec![ToolResultMessage::new("kept", "body")]),
+        ConversationMessage::assistant_tool_calls(vec![ToolCall::new("missing", "read", "{}")]),
+    ];
+    let sanitized = sanitize_orphan_tool_messages(&messages);
+    assert_eq!(sanitized.len(), 2);
+    let ConversationMessage::AssistantToolCalls {
+        text,
+        tool_calls,
+        metadata,
+    } = &sanitized[0]
+    else {
+        panic!("expected call")
+    };
+    assert_eq!(text.as_deref(), Some("working"));
+    assert_eq!(tool_calls, &vec![ToolCall::new("kept", "read", "{}")]);
+    assert_eq!(metadata, &Some(serde_json::json!({"turn": 1})));
+    assert_eq!(latest_visible_assistant_index(&messages), Some(0));
+    assert_eq!(
+        latest_visible_assistant_index(&[ConversationMessage::tool_results(vec![])]),
+        None
+    );
+}
