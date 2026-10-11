@@ -267,7 +267,7 @@ fn signal_limits_warnings_errors_and_stack_traces_but_keeps_boundaries() {
 }
 
 #[test]
-fn signal_caps_summary_lines_and_declines_when_markers_would_expand_output() {
+fn signal_caps_summary_lines_and_selects_first_and_last_errors() {
     let content = (0..150)
         .map(|i| format!("build succeeded for component {i}"))
         .collect::<Vec<_>>()

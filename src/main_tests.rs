@@ -237,3 +237,41 @@ fn store_inventory_counts_only_tokens_and_stats_formats_both_modes() {
     assert!(run(args(&["stats", "--store-dir", root])).is_ok());
     assert!(run(args(&["ls", "--store-dir", root])).is_ok());
 }
+
+#[test]
+fn host_doctor_distinguishes_installed_rust_adapter_and_absent_codex_instructions() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("src/openhuman/tokenjuice/mod.rs");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, "// adapter fixture").unwrap();
+    assert_eq!(doctor_openhuman(Some(dir.path().into()))["status"], "ok");
+    assert!(
+        run(args(&[
+            "doctor",
+            "openhuman",
+            "--openhuman-root",
+            dir.path().to_str().unwrap()
+        ]))
+        .is_ok()
+    );
+    assert_eq!(
+        uninstall_codex(Some(dir.path().into())).unwrap()["changed"],
+        false
+    );
+    let instruction = codex_instruction_path(dir.path());
+    fs::create_dir_all(instruction.parent().unwrap()).unwrap();
+    fs::write(instruction, "unmanaged instructions").unwrap();
+    assert_eq!(doctor_codex(Some(dir.path().into()))["status"], "disabled");
+}
+
+#[test]
+fn range_parsing_rejects_invalid_numbers_and_reversed_ranges() {
+    for raw in ["bad", "x:2", "1:x", "4:2"] {
+        assert!(parse_range_arg(raw, "--lines").is_err(), "{raw}");
+    }
+    assert_eq!(parse_range_arg("2:2", "--bytes").unwrap(), (2, 2));
+    assert_eq!(merge_doctor_status("ok", "warn"), "warn");
+    assert_eq!(merge_doctor_status("broken", "warn"), "broken");
+    assert_eq!(command_binary_status("tinyjuice reduce-json"), None);
+    assert_eq!(command_binary_status(""), None);
+}

@@ -773,3 +773,36 @@ fn detect_only_respects_hard_hint_without_transforming_payload() {
         ContentKind::Html
     );
 }
+
+#[tokio::test]
+async fn typed_code_stub_retains_original_and_exposes_structural_preview() {
+    let store = cache::MemoryCcrStore::default();
+    let content = big_code_file();
+    let hint = ContentHint {
+        explicit: Some(ContentKind::Code),
+        extension: Some("rs".into()),
+        read_intent: crate::types::ReadIntent::Stub(crate::types::StubMode::SignaturesOnly),
+        ..Default::default()
+    };
+    let input = CompressInput {
+        content: &content,
+        kind: ContentKind::Code,
+        hint: &hint,
+        command: None,
+        argv: None,
+        exit_code: None,
+        original_bytes: content.len(),
+    };
+    let options = CompressOptions {
+        ccr_min_tokens: 0,
+        ..opts()
+    };
+    let out = route_with_store(input, &options, &store).await;
+    assert!(out.applied && out.lossy, "{out:?}");
+    assert_eq!(out.compressor, CompressorKind::Code);
+    assert!(out.body.contains("pub fn process"));
+    assert_eq!(
+        store.get(out.ccr_token.as_deref().unwrap()).as_deref(),
+        Some(content.as_str())
+    );
+}

@@ -148,8 +148,6 @@ fn skips_inapplicable_declining_and_nonshrinking_reformats() {
     assert_eq!(out.text, "alpha beta");
     assert_eq!(out.report.skipped_steps.len(), 2);
     assert!(out.report.applied_steps.is_empty());
-    // Two leading spaces are replaced by one separator, but a trailing newline
-    // would preserve the length. All-whitespace input shrinks successfully.
     let out = run_typed_pipeline(input("a  b"), &[&SpaceReformat], &[], &store);
     assert_eq!(out.text, "a b");
 }
