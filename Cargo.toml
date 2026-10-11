@@ -28,7 +28,7 @@ resolver = "3"
 
 [dependencies]
 # Optional adapter boundary: REPL ops as `tinytools::Tool` impls.
-tinytools = { git = "https://github.com/tinyhumansai/tinytools", optional = true }
+tinytools = { version = "0.5", git = "https://github.com/tinyhumansai/tinytools", optional = true }
 anyhow = { version = "1", optional = true }
 uuid = { version = "1", features = ["v4"], optional = true }
 jaq-core = { version = "3", optional = true }
@@ -37,7 +37,7 @@ jaq-json = { version = "2", optional = true }
 # The wire contract, defined once and shared with the module and with hosts.
 # This crate re-exports its types from `src/types.rs` rather than declaring a
 # second copy — see the note there.
-tinyjuice-bus = { path = "crates/tinyjuice-bus" }
+tinyjuice-bus = { version = "0.7.1", path = "crates/tinyjuice-bus" }
 async-trait = "0.1"
 dirs = "7"
 hex = "0.4"

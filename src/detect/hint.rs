@@ -3,7 +3,7 @@
 //! The producing tool name is a strong prior on what kind of content a blob
 //! holds, so the detector doesn't have to work from scratch for the common
 //! case. Ported from the compaction router (`hint_for_tool`) and folded into
-//! the richer [`ContentHint`] the new router uses.
+//! the richer [`ContentHint`](crate::types::ContentHint) the new router uses.
 
 use crate::types::ContentKind;
 

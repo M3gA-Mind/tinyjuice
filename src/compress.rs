@@ -669,7 +669,7 @@ fn finalize_typed_output(
     Some((res, report))
 }
 
-/// Build a [`CompressorKind`] label-free passthrough quickly (used by callers
+/// Build a [`CompressorKind`](crate::types::CompressorKind) label-free passthrough quickly (used by callers
 /// that only need to detect without compressing).
 pub fn detect_only(content: &str, hint: &ContentHint) -> ContentKind {
     detect_content_kind(content, hint)

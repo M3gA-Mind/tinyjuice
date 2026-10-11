@@ -40,3 +40,4 @@ jobs:
       tag: ${{ needs.resolve.outputs.tag }}
       version: ${{ needs.resolve.outputs.version }}
       module-crate: tinyjuice-module
+      extra-packaged-files: '["docs/specs/tinybus-module.md"]'
