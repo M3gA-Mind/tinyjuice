@@ -228,3 +228,7 @@ async fn main() {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "live_summary_eval_tests.rs"]
+mod tests;
