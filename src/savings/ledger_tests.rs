@@ -100,3 +100,22 @@ fn missing_or_malformed_snapshots_leave_in_memory_totals_intact() {
     ledger.configure(&invalid);
     assert_eq!(ledger.stats().total.tokens_saved, 1000);
 }
+
+#[test]
+fn loads_a_pre_migration_openhuman_snapshot() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("savings.json");
+    std::fs::write(&path, r#"{
+        "total":{"events":1,"originalTokens":2000,"compactedTokens":1000,"tokensSaved":1000,"costSavedUsd":0.003},
+        "byModel":{"claude-sonnet-4-6":{"events":1,"originalTokens":2000,"compactedTokens":1000,"tokensSaved":1000,"costSavedUsd":0.003}},
+        "byCompressor":{"smartcrusher":{"events":1,"originalTokens":2000,"compactedTokens":1000,"tokensSaved":1000,"costSavedUsd":0.003}}
+    }"#).unwrap();
+    let ledger = SavingsLedger::new();
+    ledger.configure(&path);
+    assert_eq!(ledger.stats().total.tokens_saved, 1000);
+    ledger.record(&request("claude-sonnet-4-6", 2000, 1000, Some(3.0)));
+    let aggregate = ledger.stats();
+    assert_eq!(aggregate.total.events, 2);
+    assert_eq!(aggregate.by_model["claude-sonnet-4-6"].tokens_saved, 2000);
+    assert!((aggregate.by_compressor["smartcrusher"].cost_saved_usd - 0.006).abs() < 1e-10);
+}
