@@ -1332,6 +1332,7 @@ name = "tinyjuice-module"
 version = "0.7.1"
 dependencies = [
  "serde_json",
+ "tempfile",
  "tinybus",
  "tinybus-module",
  "tinyjuice",

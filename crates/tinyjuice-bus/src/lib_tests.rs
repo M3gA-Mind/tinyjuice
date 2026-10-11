@@ -7,6 +7,10 @@ fn the_contract_accepts_its_own_version_and_newer_minors() {
     assert!(is_compatible(CONTRACT_VERSION));
     assert!(is_compatible((CONTRACT_VERSION.0, CONTRACT_VERSION.1 + 1)));
     assert!(!is_compatible((CONTRACT_VERSION.0 + 1, 0)));
+    assert!(
+        !is_compatible((2, 0)),
+        "savings members require contract 2.1"
+    );
 }
 
 #[test]

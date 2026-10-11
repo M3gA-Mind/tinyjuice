@@ -13,6 +13,7 @@
 
 pub mod names;
 pub mod repl;
+pub mod savings;
 pub mod summary;
 pub mod tools;
 pub mod types;

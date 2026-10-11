@@ -39,6 +39,14 @@ pub mod methods {
     pub const QUERY: &str = "Query";
     /// Convert HTML to Markdown inside the module.
     pub const EXTRACT_HTML: &str = "ExtractHtml";
+    /// Sets the savings snapshot path and loads an existing snapshot once.
+    pub const CONFIGURE_SAVINGS: &str = "ConfigureSavings";
+    /// Records a saving with the host-resolved model input price.
+    pub const RECORD_SAVINGS: &str = "RecordSavings";
+    /// Returns the current persisted-format savings totals.
+    pub const SAVINGS_STATS: &str = "SavingsStats";
+    /// Clears savings totals and persists the empty snapshot.
+    pub const RESET_SAVINGS: &str = "ResetSavings";
     /// Reports what the cache is holding.
     pub const CACHE_STATS: &str = "CacheStats";
 }
@@ -65,4 +73,8 @@ pub const METHODS: &[&str] = &[
     methods::QUERY,
     methods::EXTRACT_HTML,
     methods::CACHE_STATS,
+    methods::CONFIGURE_SAVINGS,
+    methods::RECORD_SAVINGS,
+    methods::SAVINGS_STATS,
+    methods::RESET_SAVINGS,
 ];
