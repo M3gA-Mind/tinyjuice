@@ -204,3 +204,7 @@ pub fn run(text: &str, program: &str, limits: &ReplLimits) -> Result<(Vec<Hit>, 
     }
     Ok((out, dropped))
 }
+
+#[cfg(test)]
+#[path = "awk_tests.rs"]
+mod tests;
