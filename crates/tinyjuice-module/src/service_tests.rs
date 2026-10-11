@@ -122,3 +122,175 @@ async fn oversized_supplied_inputs_are_rejected_before_execution() {
         Err(HtmlError::InputTooLarge)
     );
 }
+
+#[tokio::test]
+async fn service_detects_compacts_and_reads_ranges() {
+    use tinyjuice::cache::CcrStore;
+    let service = Compression;
+    assert_eq!(
+        service
+            .detect("{}".into(), ContentHint::default())
+            .await
+            .unwrap(),
+        "json"
+    );
+    let compact = service
+        .compact(
+            "short output".into(),
+            "bash".into(),
+            false,
+            AgentTokenjuiceCompression::default(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(compact.text, "short output");
+    assert!(!compact.applied);
+    assert_eq!(compact.original_bytes, compact.compacted_bytes);
+    assert_eq!(compact.original_tokens, compact.compacted_tokens);
+    let compact_with = service
+        .compact_with(CompactRequest {
+            content: "short output".into(),
+            tool_name: "bash".into(),
+            enabled: false,
+            profile: AgentTokenjuiceCompression::default(),
+            arguments: None,
+            focus: None,
+            context_token: None,
+            scope: None,
+        })
+        .await
+        .unwrap();
+    assert_eq!(compact_with.text, compact.text);
+    let token = tinyjuice::cache::GlobalCcrStore
+        .put("alpha\nbeta\ngamma")
+        .token()
+        .to_string();
+    for (unit, start, end, expected) in [
+        (WireRangeUnit::Bytes, 0, 5, "alpha"),
+        (WireRangeUnit::Lines, 1, 2, "beta"),
+    ] {
+        assert_eq!(
+            service
+                .retrieve(token.clone(), Some(RetrieveRange { unit, start, end }))
+                .await
+                .unwrap()
+                .as_deref(),
+            Some(expected)
+        );
+    }
+    assert!(service.cache_stats().await.unwrap().entries > 0);
+    assert_eq!(
+        service
+            .extract_html("<h1>Title</h1>".into())
+            .await
+            .unwrap()
+            .unwrap()
+            .trim(),
+        "# Title"
+    );
+}
+
+#[tokio::test]
+async fn typed_queries_preserve_results_and_structured_errors() {
+    use tinyjuice::cache::CcrStore;
+    use tinyjuice_bus::wire::{QueryError, QueryRequest, QueryTarget};
+    let token = tinyjuice::cache::GlobalCcrStore
+        .put("alpha\nbeta needle")
+        .token()
+        .to_string();
+    for target in [
+        QueryTarget::Handle { token },
+        QueryTarget::Content {
+            content: "alpha\nbeta needle".into(),
+        },
+    ] {
+        let result = Compression
+            .query(QueryRequest {
+                target,
+                op: serde_json::from_value(serde_json::json!({"op":"find","query":"needle"}))
+                    .unwrap(),
+                limits: Default::default(),
+                context_token: Some("ticket".into()),
+                scope: Some("turn".into()),
+            })
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            serde_json::to_string(&result)
+                .unwrap()
+                .contains("beta needle")
+        );
+    }
+    for (target, op, expected) in [
+        (
+            QueryTarget::Handle {
+                token: "missing".into(),
+            },
+            serde_json::json!({"op":"find","query":"needle"}),
+            QueryError::HandleNotFound,
+        ),
+        (
+            QueryTarget::Content {
+                content: "alpha".into(),
+            },
+            serde_json::json!({"op":"find","query":""}),
+            QueryError::EmptyQuery,
+        ),
+    ] {
+        assert_eq!(
+            Compression
+                .query(QueryRequest {
+                    target,
+                    op: serde_json::from_value(op).unwrap(),
+                    limits: Default::default(),
+                    context_token: None,
+                    scope: None,
+                })
+                .await
+                .unwrap(),
+            Err(expected)
+        );
+    }
+    let result = Compression
+        .query(QueryRequest {
+            target: QueryTarget::Content {
+                content: "alpha".into(),
+            },
+            op: serde_json::from_value(serde_json::json!({"op":"find","query":"[","mode":"regex"}))
+                .unwrap(),
+            limits: Default::default(),
+            context_token: None,
+            scope: None,
+        })
+        .await
+        .unwrap();
+    assert!(matches!(result, Err(QueryError::InvalidPattern(_))));
+}
+
+#[tokio::test]
+async fn savings_service_records_persists_and_resets_totals() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("savings.json");
+    Compression
+        .configure_savings(path.to_string_lossy().into())
+        .await
+        .unwrap();
+    Compression.reset_savings().await.unwrap();
+    Compression
+        .record_savings(tinyjuice_bus::savings::RecordSavingsRequest {
+            model: "test-model".into(),
+            compressor: "test-compressor".into(),
+            original_tokens: 100,
+            compacted_tokens: 40,
+            input_per_mtok_usd: Some(2.0),
+        })
+        .await
+        .unwrap();
+    let stats = Compression.savings_stats().await.unwrap();
+    assert_eq!(stats.total.tokens_saved, 60);
+    assert_eq!(stats.by_model["test-model"].events, 1);
+    assert!(path.exists());
+    Compression.reset_savings().await.unwrap();
+    assert_eq!(Compression.savings_stats().await.unwrap().total.events, 0);
+}
