@@ -300,3 +300,34 @@ fn cached_overlay_includes_project_rules_and_caches_per_cwd() {
     let bare = cached_overlay_rules(Some(other.path()));
     assert!(!bare.iter().any(|r| r.rule.id == "test/overlay-cache"));
 }
+
+#[test]
+fn ignores_invalid_rule_files_and_missing_directories() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("invalid.json"), "{").unwrap();
+    std::fs::write(dir.path().join("non-utf8.json"), [0xff]).unwrap();
+    assert!(load_disk_descriptors(dir.path(), RuleOrigin::User).is_empty());
+    let mut files = Vec::new();
+    walk_dir(&dir.path().join("missing"), &mut files);
+    assert!(files.is_empty());
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(
+            dir.path().join("invalid.json"),
+            dir.path().join("link.json"),
+        )
+        .unwrap();
+        assert_eq!(list_rule_files(dir.path()).len(), 2);
+    }
+}
+
+#[test]
+fn project_rules_fall_back_to_legacy_directory() {
+    let dir = tempfile::tempdir().unwrap();
+    let legacy = dir.path().join(".tokenjuice/rules");
+    std::fs::create_dir_all(&legacy).unwrap();
+    assert_eq!(project_rules_root(Some(dir.path()), None), legacy);
+    let modern = dir.path().join(".tinyjuice/rules");
+    std::fs::create_dir_all(&modern).unwrap();
+    assert_eq!(project_rules_root(Some(dir.path()), None), modern);
+}

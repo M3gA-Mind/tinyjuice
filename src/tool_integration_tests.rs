@@ -406,3 +406,44 @@ async fn handle_mode_is_honored_before_a_summary() {
     assert_eq!(report.stats.rule_id, "repl", "{}", report.text);
     assert!(report.notice.is_none());
 }
+
+#[test]
+fn command_arguments_filter_nonstrings_and_prefer_argv() {
+    assert_eq!(
+        extract_command_argv(Some(
+            &json!({"argv":["git", 4, "status"], "command":"ignored"})
+        )),
+        (
+            Some("git status".into()),
+            Some(vec!["git".into(), "status".into()])
+        )
+    );
+    assert_eq!(
+        extract_command_argv(Some(&json!({"cmd":"git", "args":["status", false]}))),
+        (
+            Some("git status".into()),
+            Some(vec!["git".into(), "status".into()])
+        )
+    );
+    assert_eq!(
+        extract_command_argv(Some(&json!({"argv":[], "cmd":""}))),
+        (Some("".into()), None)
+    );
+    assert_eq!(extract_command_argv(Some(&json!([]))), (None, None));
+    assert_eq!(extract_extension(Some(&json!([]))), None);
+}
+
+#[test]
+fn ratio_handles_empty_and_reduced_outputs() {
+    let mut stats = CompactionStats {
+        tool_name: "t".into(),
+        original_bytes: 0,
+        compacted_bytes: 0,
+        rule_id: "none".into(),
+        applied: false,
+    };
+    assert_eq!(stats.ratio(), 1.0);
+    stats.original_bytes = 100;
+    stats.compacted_bytes = 25;
+    assert_eq!(stats.ratio(), 0.25);
+}
