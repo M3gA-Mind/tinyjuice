@@ -172,11 +172,13 @@ impl Compression {
         Ok(CacheStats { entries, bytes })
     }
 
+    /// Select and restore the module-owned savings snapshot once per path.
     async fn configure_savings(&self, snapshot_path: String) -> BusResult<()> {
         savings_ledger().configure(std::path::Path::new(&snapshot_path));
         Ok(())
     }
 
+    /// Accumulate a compaction using the host-provided model input price.
     async fn record_savings(
         &self,
         request: tinyjuice_bus::savings::RecordSavingsRequest,
@@ -185,10 +187,12 @@ impl Compression {
         Ok(())
     }
 
+    /// Return a consistent copy of the module-owned savings totals.
     async fn savings_stats(&self) -> BusResult<tinyjuice_bus::savings::SavingsAggregate> {
         Ok(savings_ledger().stats())
     }
 
+    /// Clear module-owned savings and persist the empty snapshot.
     async fn reset_savings(&self) -> BusResult<()> {
         savings_ledger().reset();
         Ok(())
@@ -314,6 +318,7 @@ mod exports {
 #[path = "service_tests.rs"]
 mod tests;
 
+/// One ledger per loaded module, shared by its compression service calls.
 fn savings_ledger() -> &'static tinyjuice::savings::ledger::SavingsLedger {
     static LEDGER: std::sync::OnceLock<tinyjuice::savings::ledger::SavingsLedger> =
         std::sync::OnceLock::new();

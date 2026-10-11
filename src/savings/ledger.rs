@@ -49,7 +49,8 @@ impl SavingsLedger {
     /// Records a strictly smaller compaction and snapshots its totals.
     ///
     /// Equal or expanded output is a no-op. Negative or non-finite input
-    /// prices are treated as unpriced so persisted totals remain valid JSON.
+    /// prices and overflowed per-event costs are unpriced. Bucket totals
+    /// saturate at their largest finite representation rather than wrapping.
     pub fn record(&self, request: &RecordSavingsRequest) {
         if request.original_tokens <= request.compacted_tokens {
             return;
@@ -61,6 +62,7 @@ impl SavingsLedger {
             .map_or(0.0, |price| {
                 (request.original_tokens - request.compacted_tokens) as f64 / 1_000_000.0 * price
             });
+        let cost = if cost.is_finite() { cost } else { 0.0 };
         let aggregate = &mut state.aggregate;
         add(&mut aggregate.total, request, cost);
         add(
@@ -97,14 +99,22 @@ impl SavingsLedger {
     }
 }
 
+/// Accumulate one event without wrapping persisted totals at their limits.
 fn add(bucket: &mut SavingsBucket, request: &RecordSavingsRequest, cost: f64) {
-    bucket.events += 1;
-    bucket.original_tokens += request.original_tokens;
-    bucket.compacted_tokens += request.compacted_tokens;
-    bucket.tokens_saved += request.original_tokens - request.compacted_tokens;
-    bucket.cost_saved_usd += cost;
+    bucket.events = bucket.events.saturating_add(1);
+    bucket.original_tokens = bucket
+        .original_tokens
+        .saturating_add(request.original_tokens);
+    bucket.compacted_tokens = bucket
+        .compacted_tokens
+        .saturating_add(request.compacted_tokens);
+    bucket.tokens_saved = bucket
+        .tokens_saved
+        .saturating_add(request.original_tokens - request.compacted_tokens);
+    bucket.cost_saved_usd = (bucket.cost_saved_usd + cost).min(f64::MAX);
 }
 
+/// Write the snapshot best-effort, retaining the former host I/O behavior.
 fn persist(state: &State) {
     let Some(path) = state.snapshot_path.as_ref() else {
         return;

@@ -127,7 +127,9 @@ link only `tinyjuice-bus::savings` and call these members:
 
 The ledger does not call a hosted pricing service or depend on a host cost
 catalog. A pricing callback remains host-owned; its result crosses the bus in
-`RecordSavingsRequest::input_per_mtok_usd`. Invalid prices are unpriced.
+`RecordSavingsRequest::input_per_mtok_usd`. Invalid prices and overflowed
+per-event costs are unpriced. Accumulated integer and dollar totals saturate
+at `u64::MAX` and `f64::MAX`, respectively.
 Counts are estimates, not provider-measured usage. The `SavingsRecord` event
 callback surface remains available separately for richer accounting.
 
