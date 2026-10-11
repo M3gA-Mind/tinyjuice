@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -13,6 +14,12 @@ import unittest
 ROOT = Path(__file__).resolve().parent.parent
 
 class PackageTests(unittest.TestCase):
+    def test_release_archive_preserves_module_specification(self):
+        workflow = (ROOT/".github/workflows/release.yml").read_text()
+        match = re.search(r"extra-packaged-files: *'([^']+)'", workflow)
+        self.assertIsNotNone(match, "release must configure additional archive documentation")
+        self.assertIn("docs/specs/tinybus-module.md", json.loads(match[1]))
+
     def test_archive_attests_host_library_bytes_from_a_symlinked_checkout(self):
         """Package the actual build script and verify the shipped bytes and attestation."""
         target = ROOT / "target"; target.mkdir(exist_ok=True)
@@ -20,6 +27,8 @@ class PackageTests(unittest.TestCase):
             root = Path(directory); (root/"scripts").mkdir(); (root/"bin").mkdir()
             shutil.copy2(ROOT/"scripts/build-module.sh", root/"scripts/build-module.sh")
             for file in ["LICENSE","README.md","MODULE.md"]: (root/file).write_text("fixture")
+            (root/"docs/specs").mkdir(parents=True)
+            (root/"docs/specs/tinybus-module.md").write_text("module specification")
             cargo = root/"bin/cargo"
             cargo.write_text("#!/usr/bin/env python3\nimport json,sys\nfrom pathlib import Path\n"
                 "root=Path.cwd()\n"
@@ -34,7 +43,8 @@ class PackageTests(unittest.TestCase):
             alias = root/"checkout-link"; alias.symlink_to(root, target_is_directory=True)
             result = subprocess.run(["bash",str(alias/"scripts/build-module.sh"),
                 "--crate","tinyjuice-module","--version","1.2.3-beta.1",
-                "--target","x86_64-unknown-linux-gnu","--host","linux-fixture"],
+                "--target","x86_64-unknown-linux-gnu","--host","linux-fixture",
+                "--extra-files-json", '["docs/specs/tinybus-module.md"]'],
                 cwd=root,env=env,text=True,capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr)
             archive=root/"release-assets/tinyjuice-module-1.2.3-beta.1-linux-fixture.tar.gz"
@@ -43,7 +53,7 @@ class PackageTests(unittest.TestCase):
                 manifest=tomllib.loads(package.extractfile("./modules.toml").read().decode())
                 self.assertEqual(data,b"compiled-fixture")
                 self.assertEqual(manifest,{"libtinyjuice_module.so":hashlib.sha256(data).hexdigest()})
-                for name in ["./LICENSE","./README.md","./MODULE.md"]:
+                for name in ["./LICENSE","./README.md","./MODULE.md","./docs/specs/tinybus-module.md"]:
                     self.assertIsNotNone(package.extractfile(name))
 
 if __name__ == "__main__": unittest.main()
