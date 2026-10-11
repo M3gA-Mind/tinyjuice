@@ -171,6 +171,26 @@ impl Compression {
         let (entries, bytes) = tinyjuice::cache::stats();
         Ok(CacheStats { entries, bytes })
     }
+
+    async fn configure_savings(&self, snapshot_path: String) -> BusResult<()> {
+        savings_ledger().configure(std::path::Path::new(&snapshot_path));
+        Ok(())
+    }
+
+    async fn record_savings(&self, request: tinyjuice_bus::savings::RecordSavingsRequest) -> BusResult<()> {
+        savings_ledger().record(&request);
+        Ok(())
+    }
+
+    async fn savings_stats(&self) -> BusResult<tinyjuice_bus::savings::SavingsAggregate> {
+        Ok(savings_ledger().stats())
+    }
+
+    async fn reset_savings(&self) -> BusResult<()> {
+        savings_ledger().reset();
+        Ok(())
+    }
+
 }
 
 /// Requests may narrow a budget but never expand the module's stock ceilings.
@@ -287,3 +307,8 @@ mod exports {
 #[cfg(test)]
 #[path = "service_tests.rs"]
 mod tests;
+
+fn savings_ledger() -> &'static tinyjuice::savings::ledger::SavingsLedger {
+    static LEDGER: std::sync::OnceLock<tinyjuice::savings::ledger::SavingsLedger> = std::sync::OnceLock::new();
+    LEDGER.get_or_init(tinyjuice::savings::ledger::SavingsLedger::new)
+}

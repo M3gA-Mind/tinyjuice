@@ -212,3 +212,6 @@ pub fn record_event(record: SavingsRecord) {
 #[cfg(test)]
 #[path = "savings_tests.rs"]
 mod tests;
+
+/// Model-attributed totals and snapshot persistence behind the module contract.
+pub mod ledger;
