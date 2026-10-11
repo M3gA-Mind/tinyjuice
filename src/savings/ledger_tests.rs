@@ -119,3 +119,41 @@ fn loads_a_pre_migration_openhuman_snapshot() {
     assert_eq!(aggregate.by_model["claude-sonnet-4-6"].tokens_saved, 2000);
     assert!((aggregate.by_compressor["smartcrusher"].cost_saved_usd - 0.006).abs() < 1e-10);
 }
+
+#[test]
+fn overflowed_cost_calculations_are_unpriced() {
+    let ledger = SavingsLedger::new();
+    ledger.record(&request("m", 2_000_000, 0, Some(f64::MAX)));
+    assert_eq!(ledger.stats().total.tokens_saved, 2_000_000);
+    assert_eq!(ledger.stats().total.cost_saved_usd, 0.0);
+    let json = serde_json::to_string(&ledger.stats()).unwrap();
+    assert!(serde_json::from_str::<SavingsAggregate>(&json).is_ok());
+}
+
+#[test]
+fn bucket_token_totals_saturate_instead_of_panicking_or_wrapping() {
+    let ledger = SavingsLedger::new();
+    ledger.record(&request("m", u64::MAX, 0, None));
+    ledger.record(&request("m", u64::MAX, 0, None));
+    let aggregate = ledger.stats();
+    for bucket in [
+        &aggregate.total,
+        &aggregate.by_model["m"],
+        &aggregate.by_compressor["smartcrusher"],
+    ] {
+        assert_eq!(bucket.original_tokens, u64::MAX);
+        assert_eq!(bucket.tokens_saved, u64::MAX);
+        assert_eq!(bucket.events, 2);
+    }
+}
+
+#[test]
+fn bucket_dollar_totals_saturate_at_the_largest_finite_value() {
+    let ledger = SavingsLedger::new();
+    ledger.record(&request("m", 2_000_000, 0, Some(f64::MAX / 2.0)));
+    ledger.record(&request("m", 2_000_000, 0, Some(f64::MAX / 2.0)));
+    let aggregate = ledger.stats();
+    assert_eq!(aggregate.total.cost_saved_usd, f64::MAX);
+    let json = serde_json::to_string(&aggregate).unwrap();
+    assert!(serde_json::from_str::<SavingsAggregate>(&json).is_ok());
+}
