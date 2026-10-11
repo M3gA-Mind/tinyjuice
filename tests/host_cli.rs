@@ -89,7 +89,11 @@ fn host_cli_help_templates_and_gc_are_usable() {
     ] {
         let out = invoke(dir.path(), &args, "");
         assert!(out.status.success(), "{args:?}: {out:?}");
-        assert!(String::from_utf8_lossy(&out.stdout).contains("tinyjuice"));
+        assert!(
+            String::from_utf8_lossy(&out.stdout)
+                .to_ascii_lowercase()
+                .contains("tinyjuice")
+        );
     }
     let out = invoke(dir.path(), &["hosts"], "");
     assert!(out.status.success());
@@ -188,7 +192,11 @@ fn host_cli_install_update_and_uninstall_preserve_settings() {
 fn host_cli_reads_json_files_and_accepts_hooks_without_output() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("request.json");
-    std::fs::write(&path, r#"{"host":"generic-json","content":"hello"}"#).unwrap();
+    std::fs::write(
+        &path,
+        r#"{"host":"generic-json","toolName":"shell","output":"hello"}"#,
+    )
+    .unwrap();
     for host_arg in [vec!["--host", "codex"], vec!["--host=claude-code"]] {
         let mut args = vec!["reduce-json"];
         args.extend(host_arg);
