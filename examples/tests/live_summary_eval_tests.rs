@@ -11,7 +11,10 @@ fn curl_config_keeps_authorization_out_of_arguments_and_removes_it_on_drop() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
     }
     drop(config);
     assert!(!path.exists());

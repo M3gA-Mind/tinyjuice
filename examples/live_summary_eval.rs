@@ -65,24 +65,9 @@ fn openrouter(model: String) -> Arc<GenerateCallback> {
                 ],
             });
             tokio::task::spawn_blocking(move || {
-                let header = format!("header = \"Authorization: Bearer {key}\"\n");
-                // The key goes through a 0600 curl config so it never shows in argv.
-                let cfg = std::env::temp_dir().join(format!(
-                    "tj-eval-{}-{}.cfg",
-                    std::process::id(),
-                    CFG_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-                ));
-                {
-                    use std::io::Write as _;
-                    use std::os::unix::fs::OpenOptionsExt;
-                    let mut f = std::fs::OpenOptions::new()
-                        .write(true)
-                        .create_new(true)
-                        .mode(0o600)
-                        .open(&cfg)
-                        .map_err(|e| e.to_string())?;
-                    f.write_all(header.as_bytes()).map_err(|e| e.to_string())?;
-                }
+                // Keep the secret out of argv; tempfile uses private permissions
+                // on Unix and exclusive creation on every supported platform.
+                let cfg = write_curl_config(&key).map_err(|e| e.to_string())?;
                 let mut child = std::process::Command::new("curl")
                     .args([
                         "-sS",
@@ -93,7 +78,7 @@ fn openrouter(model: String) -> Arc<GenerateCallback> {
                         "Content-Type: application/json",
                         "-K",
                     ])
-                    .arg(&cfg)
+                    .arg(cfg.path())
                     .args(["-d", "@-"])
                     .stdin(std::process::Stdio::piped())
                     .stdout(std::process::Stdio::piped())
@@ -108,7 +93,6 @@ fn openrouter(model: String) -> Arc<GenerateCallback> {
                     .write_all(body.to_string().as_bytes())
                     .map_err(|e| e.to_string())?;
                 let out = child.wait_with_output().map_err(|e| e.to_string())?;
-                let _ = std::fs::remove_file(&cfg);
                 let v: serde_json::Value =
                     serde_json::from_slice(&out.stdout).map_err(|e| e.to_string())?;
                 v["choices"][0]["message"]["content"]
@@ -129,7 +113,13 @@ fn arg_values(args: &[String], flag: &str) -> Vec<String> {
         .collect()
 }
 
-static CFG_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+fn write_curl_config(key: &str) -> std::io::Result<tempfile::NamedTempFile> {
+    use std::io::Write as _;
+    let mut config = tempfile::NamedTempFile::new()?;
+    writeln!(config, "header = \"Authorization: Bearer {key}\"")?;
+    config.flush()?;
+    Ok(config)
+}
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
