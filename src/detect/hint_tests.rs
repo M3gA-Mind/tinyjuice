@@ -28,3 +28,18 @@ fn mimes_map() {
     assert_eq!(mime_to_kind("text/x-rust"), Some(ContentKind::Code));
     assert_eq!(mime_to_kind("text/plain"), None);
 }
+
+#[test]
+fn explicit_priors_preserve_the_kind_and_auto_defers_to_detection() {
+    assert_eq!(prior_to_kind(ToolPrior::Json), Some(ContentKind::Json));
+    assert_eq!(prior_to_kind(ToolPrior::Auto), None);
+}
+
+#[test]
+fn log_extensions_and_patch_mimes_select_their_specialized_compressors() {
+    assert_eq!(extension_to_kind("log"), Some(ContentKind::Log));
+    assert_eq!(
+        mime_to_kind(" text/x-patch; charset=utf-8 "),
+        Some(ContentKind::Diff)
+    );
+}
