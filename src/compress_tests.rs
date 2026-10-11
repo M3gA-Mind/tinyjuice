@@ -800,7 +800,7 @@ async fn typed_code_stub_retains_original_and_exposes_structural_preview() {
     let out = route_with_store(input, &options, &store).await;
     assert!(out.applied && out.lossy, "{out:?}");
     assert_eq!(out.compressor, CompressorKind::Code);
-    assert!(out.body.contains("pub fn process"));
+    assert!(out.body.contains("pub fn worker_0"));
     assert_eq!(
         store.get(out.ccr_token.as_deref().unwrap()).as_deref(),
         Some(content.as_str())
