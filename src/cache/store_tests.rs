@@ -382,3 +382,39 @@ fn default_range_retrieval_clamps_utf8_and_empty_ranges() {
         Some("")
     );
 }
+
+#[test]
+fn global_adapter_supports_ranges_and_unconfigured_disk_gc() {
+    let store = GlobalCcrStore;
+    let put = store.put("global ranged retrieval fixture\nsecond");
+    assert!(put.retained());
+    assert_eq!(
+        store
+            .get_range(put.token(), 1, 2, RangeUnit::Lines)
+            .as_deref(),
+        Some("second")
+    );
+    assert!(stats().0 > 0);
+    assert!(gc_disk_tier(None, None).is_ok());
+    assert!(!disk_entry_expired(
+        &PathBuf::from("/nonexistent-tinyjuice-fixture"),
+        Some(Duration::ZERO)
+    ));
+}
+
+#[test]
+fn isolated_store_recovers_its_contents_after_lock_poisoning() {
+    let store = MemoryCcrStore::default();
+    let put = store.put("poison recovery fixture");
+    let _ = std::panic::catch_unwind(|| {
+        let _lock = store.inner.lock().unwrap();
+        panic!("intentional isolated-store lock poison");
+    });
+    assert_eq!(
+        store.get(put.token()).as_deref(),
+        Some("poison recovery fixture")
+    );
+    assert_eq!(store.stats(), (1, 23));
+    let next = store.put("second fixture");
+    assert!(next.retained());
+}

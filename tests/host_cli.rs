@@ -9,6 +9,7 @@ fn invoke(dir: &std::path::Path, args: &[&str], input: &str) -> Output {
         .env("CLAUDE_CONFIG_DIR", dir.join("claude"))
         .env("TINYJUICE_MIN_BYTES_TO_COMPRESS", "0")
         .env("TINYJUICE_CCR_ENABLED", "yes")
+        .env("TINYJUICE_CCR_TTL_SECS", "60")
         .env("TINYJUICE_LOSSY_WITHOUT_CCR", "invalid")
         .env("TINYJUICE_CODE_TARGET_RATIO", "0.5")
         .stdin(Stdio::piped())
@@ -162,6 +163,9 @@ fn host_cli_install_update_and_uninstall_preserve_settings() {
         );
     }
     for host in ["codex", "claude-code"] {
+        let out = invoke(dir.path(), &["install", host], "");
+        assert!(out.status.success(), "{out:?}");
+        assert!(String::from_utf8_lossy(&out.stderr).contains("not interactive"));
         let out = invoke(
             dir.path(),
             &["install", host, "--support-git-signature"],
@@ -206,4 +210,15 @@ fn host_cli_reads_json_files_and_accepts_hooks_without_output() {
         assert!(out.status.success(), "{out:?}");
         assert!(out.stdout.is_empty());
     }
+}
+
+#[test]
+fn host_cli_retrieves_original_from_disk_tier() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("ccr")).unwrap();
+    let token = tinyjuice::cache::short_hash("stored original");
+    std::fs::write(dir.path().join("ccr").join(&token), "stored original").unwrap();
+    let out = invoke(dir.path(), &["retrieve", &token], "");
+    assert!(out.status.success(), "{out:?}");
+    assert_eq!(out.stdout, b"stored original");
 }
