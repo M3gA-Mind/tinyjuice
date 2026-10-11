@@ -1,4 +1,5 @@
 [package]
+rust-version = "1.88"
 name = "tinyjuice-bus"
 version = "0.7.1"
 edition = "2024"
