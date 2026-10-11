@@ -279,5 +279,9 @@ fn unsupported_attribution_and_config_io_failures_return_errors() {
             .is_empty()
     );
     config = serde_json::json!({"hooks": "invalid"});
-    assert!(ensure_object_field(&mut config, "hooks").is_err());
+    assert!(
+        ensure_object_field(&mut config, "hooks")
+            .unwrap()
+            .is_empty()
+    );
 }

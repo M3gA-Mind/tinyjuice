@@ -408,5 +408,5 @@ fn typed_stub_declines_noncode_and_nonshrinking_input() {
 fn heuristic_handles_unbalanced_closes_and_short_nested_runs() {
     let source = "}\nfn a() {\n    x();\n}\n".repeat(4);
     let out = compress_heuristic(&source);
-    assert!(out.is_none() || out.unwrap().text.contains("x();"));
+    assert_eq!(out.unwrap().text, source.trim_end());
 }
