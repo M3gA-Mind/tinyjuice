@@ -89,11 +89,7 @@ fn host_cli_help_templates_and_gc_are_usable() {
     ] {
         let out = invoke(dir.path(), &args, "");
         assert!(out.status.success(), "{args:?}: {out:?}");
-        assert!(
-            String::from_utf8_lossy(&out.stdout)
-                .to_ascii_lowercase()
-                .contains("tinyjuice")
-        );
+        assert!(String::from_utf8_lossy(&out.stderr).contains("Usage:"));
     }
     let out = invoke(dir.path(), &["hosts"], "");
     assert!(out.status.success());
@@ -194,7 +190,7 @@ fn host_cli_reads_json_files_and_accepts_hooks_without_output() {
     let path = dir.path().join("request.json");
     std::fs::write(
         &path,
-        r#"{"host":"generic-json","toolName":"shell","output":"hello"}"#,
+        r#"{"host":"generic-json","toolName":"shell","stdout":"hello"}"#,
     )
     .unwrap();
     for host_arg in [vec!["--host", "codex"], vec!["--host=claude-code"]] {
