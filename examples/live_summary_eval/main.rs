@@ -220,5 +220,5 @@ async fn main() {
 }
 
 #[cfg(test)]
-#[path = "tests/live_summary_eval_tests.rs"]
+#[path = "main_tests.rs"]
 mod tests;

@@ -109,3 +109,7 @@ pub fn repl_tools_with_model(
         })
         .collect()
 }
+
+#[cfg(test)]
+#[path = "tools_tests.rs"]
+mod tests;
