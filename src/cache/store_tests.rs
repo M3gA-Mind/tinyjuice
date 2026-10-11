@@ -279,3 +279,106 @@ fn disk_entry_ttl_uses_file_mtime() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn isolated_store_disk_survives_memory_eviction_and_validates_tokens() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = MemoryCcrStore::new(1, 8).with_disk_root(dir.path().to_owned());
+    let result = store.put("larger than memory capacity");
+    assert!(result.retained());
+    assert_eq!(store.stats(), (0, 0));
+    assert_eq!(
+        store.get(result.token()).as_deref(),
+        Some("larger than memory capacity")
+    );
+    assert_eq!(
+        store
+            .get_range(result.token(), 0, 6, RangeUnit::Bytes)
+            .as_deref(),
+        Some("larger")
+    );
+    assert_eq!(store.get("../escape"), None);
+    assert_eq!(
+        store.get_range(&"0".repeat(32), 0, 1, RangeUnit::Lines),
+        None
+    );
+}
+
+#[test]
+fn isolated_store_ttl_expires_memory_and_disk_and_updates_bytes() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = MemoryCcrStore::default()
+        .with_ttl(Some(Duration::ZERO))
+        .with_disk_root(dir.path().to_owned());
+    let result = store.put("expired payload");
+    assert!(result.retained());
+    assert_eq!(store.stats(), (1, 15));
+    assert_eq!(store.get(result.token()), None);
+    assert_eq!(store.stats(), (0, 0));
+    assert!(!dir.path().join(result.token()).exists());
+}
+
+#[test]
+fn isolated_store_disk_setup_and_write_failures_do_not_claim_retention() {
+    let dir = tempfile::tempdir().unwrap();
+    let blocked = dir.path().join("file");
+    std::fs::write(&blocked, "block").unwrap();
+    let store = MemoryCcrStore::new(1, 1).with_disk_root(blocked);
+    assert!(!store.put("too large").retained());
+    let root = dir.path().join("disk");
+    let store = MemoryCcrStore::new(1, 1).with_disk_root(root.clone());
+    std::fs::remove_dir(&root).unwrap();
+    assert!(!store.put("too large").retained());
+}
+
+#[test]
+fn garbage_collection_skips_nonentries_and_protects_inflight_original() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("notes"), "unrelated").unwrap();
+    std::fs::create_dir(dir.path().join("a".repeat(32))).unwrap();
+    let protected = short_hash("protected");
+    std::fs::write(dir.path().join(&protected), "protected").unwrap();
+    let removed = short_hash("removed");
+    std::fs::write(dir.path().join(&removed), "removed").unwrap();
+    let stats = gc_dir_protecting(dir.path(), None, Some(0), Some(&protected)).unwrap();
+    assert_eq!(stats.removed, 1);
+    assert_eq!(stats.kept, 1);
+    assert_eq!(stats.kept_bytes, 9);
+    assert!(dir.path().join(&protected).exists());
+    assert!(dir.path().join("notes").exists());
+    assert_eq!(
+        gc_disk_dir(&dir.path().join("absent"), None, None).unwrap(),
+        GcStats::default()
+    );
+    assert!(gc_disk_dir(&dir.path().join("notes"), None, None).is_err());
+}
+
+#[test]
+fn default_range_retrieval_clamps_utf8_and_empty_ranges() {
+    let store = MemoryCcrStore::default();
+    let put = store.put("é\nsecond");
+    assert_eq!(
+        store
+            .get_range(put.token(), 1, 2, RangeUnit::Bytes)
+            .as_deref(),
+        Some("é")
+    );
+    assert_eq!(
+        store
+            .get_range(put.token(), 1, 99, RangeUnit::Lines)
+            .as_deref(),
+        Some("second")
+    );
+    assert_eq!(
+        store
+            .get_range(put.token(), 8, 9, RangeUnit::Lines)
+            .as_deref(),
+        Some("")
+    );
+    assert_eq!(
+        store
+            .get_range(put.token(), 2, 1, RangeUnit::Bytes)
+            .as_deref(),
+        Some("")
+    );
+}
