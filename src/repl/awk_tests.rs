@@ -21,13 +21,7 @@ fn projections_support_literals_field_counts_and_default_print() {
         run("alice\nbob", "!/alice/", &limits).unwrap().0[0].text,
         "bob"
     );
-    for program in [
-        "NR != 1",
-        "NR < 2",
-        "NR <= 1",
-        "NR >= 2",
-        "$1 < \\\"bob\\\"",
-    ] {
+    for program in ["NR != 1", "NR < 2", "NR <= 1", "NR >= 2", r#"$1 < "bob""#] {
         assert_eq!(
             run("alice\nbob", program, &limits).unwrap().0.len(),
             1,
