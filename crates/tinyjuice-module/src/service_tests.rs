@@ -345,7 +345,8 @@ async fn setup_serves_detection_and_forwards_model_calls_to_the_host() {
         .unwrap();
     assert_eq!(detected, "log");
     let request: GenerateRequest = serde_json::from_value(serde_json::json!({
-        "prompt": "summarize this artifact", "contextToken": "turn", "maxTokens": 100
+        "prompt": "summarize this artifact", "contextToken": "turn", "maxOutputTokens": 100,
+        "purpose": "tool_output_summary", "system": "Summarize"
     }))
     .unwrap();
     assert_eq!(
