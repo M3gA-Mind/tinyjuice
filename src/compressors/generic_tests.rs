@@ -64,3 +64,31 @@ async fn runs_fallback_for_command_context() {
 fn identifies_generic_strategy() {
     assert_eq!(GenericCompressor.kind(), CompressorKind::Generic);
 }
+
+#[tokio::test]
+async fn argv_context_enables_fallback_but_empty_argv_declines() {
+    let compressor = GenericCompressor;
+    let hint = ContentHint::default();
+    let opts = CompressOptions {
+        max_inline_chars: Some(80),
+        ..Default::default()
+    };
+    let content = (0..40)
+        .map(|i| format!("ordinary output line {i}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        compressor
+            .compress(&input(&content, &hint, None, Some(vec![])), &opts)
+            .await
+            .is_none()
+    );
+    let output = compressor
+        .compress(
+            &input(&content, &hint, None, Some(vec!["custom".into()])),
+            &opts,
+        )
+        .await
+        .unwrap();
+    assert!(output.lossy && output.text.len() < content.len());
+}
