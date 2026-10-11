@@ -128,3 +128,29 @@ fn sensitive_values_are_redacted_before_digesting() {
     assert!(!results[0].content.contains("SECRET789"));
     assert!(tool_calls[0].arguments.contains("[redacted]"));
 }
+
+#[test]
+fn defaults_protect_recent_results_and_shrink_nested_strings() {
+    let options = ToolDigestOptions::default();
+    assert_eq!(options.keep_recent_tool_results, 4);
+    assert_eq!(options.max_full_result_chars, 2000);
+    assert_eq!(options.max_argument_string_chars, 160);
+    let v = serde_json::json!({"items": ["long string", 42, true, null]});
+    let shrunk = shrink_json_string_leaves(&v, 0);
+    assert_eq!(shrunk, serde_json::json!({"items": ["", 42, true, null]}));
+    assert_eq!(
+        render_tool_detail("web_fetch", r#"{"url":"https://example.com"}"#),
+        "url=https://example.com"
+    );
+    assert_eq!(
+        render_tool_detail("search", r#"{"query":"needle"}"#),
+        "pattern=needle"
+    );
+    assert_eq!(
+        render_tool_detail("read_file", r#"{"path":"a.rs"}"#),
+        "path=a.rs"
+    );
+    assert_eq!(render_tool_detail("read_file", "invalid"), "");
+    assert_eq!(render_tool_detail("read_file", "[]"), "");
+    assert_eq!(render_tool_detail("unknown", "{}"), "");
+}

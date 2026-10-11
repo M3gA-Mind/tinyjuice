@@ -128,3 +128,14 @@ fn parse_unix_and_windows_paths() {
     );
     assert_eq!(parse_search_line("just a sentence"), None);
 }
+
+#[test]
+fn narrow_json_array_detector_requires_multiple_items_and_an_object() {
+    assert!(!looks_like_json_array("{}"));
+    assert!(!looks_like_json_array("["));
+    assert!(!looks_like_json_array("[{}]"));
+    assert!(!looks_like_json_array("[1,2]"));
+    assert!(looks_like_json_array("  [{},1]  "));
+    assert_eq!(detect("   "), ContentKind::PlainText);
+    assert!(looks_like_html("<p>one</p>\n\n<span>two</span>\n<br>"));
+}

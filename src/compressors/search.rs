@@ -5,7 +5,7 @@
 //! file plus a `[+N more in <file>]` tally, and (via the router) offloads the
 //! full result set to CCR so the complete list is one `retrieve` away.
 //!
-//! Ranking: when the caller supplies a `query` in the [`ContentHint`], matches
+//! Ranking: when the caller supplies a `query` in the [`ContentHint`](crate::types::ContentHint), matches
 //! are scored by the shared BM25/tokenizer path so regex punctuation and exact
 //! identifiers carry through. Without a query, matches use body length /
 //! uniqueness (longer, more-distinctive lines first), with importance signals

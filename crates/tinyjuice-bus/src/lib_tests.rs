@@ -250,3 +250,27 @@ fn declarations_round_trip_and_keep_the_existing_tool_names() {
         assert_eq!(declaration.parameters["required"][0], "handle");
     }
 }
+
+#[test]
+fn web_extract_formats_keep_the_same_label_in_metadata_and_on_the_wire() {
+    use types::WebExtractFormat;
+    for (format, label) in [
+        (WebExtractFormat::Markdown, "markdown"),
+        (WebExtractFormat::Text, "text"),
+        (WebExtractFormat::Html, "html"),
+    ] {
+        assert_eq!(format.as_str(), label);
+        assert_eq!(serde_json::to_value(format).unwrap(), label);
+    }
+}
+
+#[test]
+fn web_extract_defaults_keep_a_bounded_preview_and_batch() {
+    let options = types::WebExtractOptions::default();
+    assert_eq!(options.char_limit, 15_000);
+    assert_eq!(options.min_char_limit, 2_000);
+    assert_eq!(options.max_char_limit, 500_000);
+    assert_eq!(options.head_ratio, 0.75);
+    assert!(options.convert_base64_images);
+    assert_eq!(options.max_combined_inline_chars, 100_000);
+}

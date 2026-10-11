@@ -54,3 +54,38 @@ fn serialized_breakdown_contains_no_raw_prompt_fields() {
     assert!(!json.contains("promptText"));
     assert!(!json.contains("raw"));
 }
+
+#[test]
+fn bucket_labels_agree_with_the_wire_format() {
+    for (kind, label) in [
+        (ContextBucketKind::SystemPrompt, "system_prompt"),
+        (ContextBucketKind::ToolDefinitions, "tool_definitions"),
+        (ContextBucketKind::RulesContextFiles, "rules_context_files"),
+        (ContextBucketKind::Skills, "skills"),
+        (ContextBucketKind::McpTools, "mcp_tools"),
+        (ContextBucketKind::Subagents, "subagents"),
+        (ContextBucketKind::Memory, "memory"),
+        (ContextBucketKind::Conversation, "conversation"),
+        (ContextBucketKind::Other, "other"),
+    ] {
+        assert_eq!(kind.as_str(), label);
+        assert_eq!(serde_json::to_value(kind).unwrap(), label);
+    }
+}
+
+#[test]
+fn empty_and_incremental_breakdowns_handle_missing_and_zero_windows() {
+    let mut breakdown = ContextBreakdown::empty();
+    assert_eq!(breakdown.effective_prompt_tokens(), 0);
+    assert_eq!(breakdown.usage_ratio(), None);
+    assert!(breakdown.bucket(ContextBucketKind::Memory).is_none());
+    let bucket = ContextBucket::memory(20)
+        .with_measured_tokens(10)
+        .as_static_prefix();
+    breakdown.add_bucket(bucket.clone());
+    assert_eq!(breakdown.estimated_total_tokens, 20);
+    assert_eq!(breakdown.static_prefix_tokens(), 10);
+    assert_eq!(breakdown.compression_candidate_tokens(), 0);
+    assert_eq!(breakdown.bucket(ContextBucketKind::Memory), Some(&bucket));
+    assert_eq!(breakdown.with_context_max_tokens(0).usage_ratio(), None);
+}

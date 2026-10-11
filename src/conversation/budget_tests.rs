@@ -70,3 +70,68 @@ fn protected_head_decays_after_first_compaction_but_keeps_system() {
     assert_eq!(first, 3);
     assert_eq!(repeated, 1);
 }
+
+#[test]
+fn empty_windows_and_fully_protected_transcripts_select_nothing() {
+    assert_eq!(
+        threshold_tokens(ConversationBudget {
+            context_length: 10,
+            max_output_tokens: 20,
+            ..Default::default()
+        }),
+        0
+    );
+    let messages = vec![ConversationMessage::user("hello")];
+    assert_eq!(
+        select_tail_by_budget_detail(&messages, usize::MAX, 100, 1, 1.0),
+        TailBudgetSelection {
+            tail_start: 1,
+            selected_tokens: 0,
+            message_count: 0
+        }
+    );
+    assert_eq!(
+        protected_head_end(
+            &messages,
+            HeadProtection {
+                protect_system_prompt: false,
+                protect_first_n_messages: 1,
+                decay_head_after_first_compaction: false,
+                compaction_count: 2,
+            }
+        ),
+        1
+    );
+}
+
+#[test]
+fn assistant_tool_estimates_include_arguments_and_optional_text() {
+    use crate::conversation::ToolCall;
+    let call = ToolCall::new("id", "search", "query");
+    let without_text = ConversationMessage::assistant_tool_calls(vec![call.clone()]);
+    let with_text = ConversationMessage::AssistantToolCalls {
+        text: Some("searching".into()),
+        tool_calls: vec![call],
+        metadata: None,
+    };
+    assert_eq!(
+        estimate_message_tokens(&without_text),
+        4 + 12
+            + estimate_tokens("id") as usize
+            + estimate_tokens("search") as usize
+            + estimate_tokens("query") as usize
+    );
+    assert_eq!(
+        estimate_message_tokens(&with_text),
+        estimate_message_tokens(&without_text) + estimate_tokens("searching") as usize
+    );
+    assert_eq!(
+        threshold_tokens(ConversationBudget {
+            context_length: 100,
+            max_output_tokens: 0,
+            minimum_context_floor: 0,
+            threshold_ratio: 0.5,
+        }),
+        50
+    );
+}

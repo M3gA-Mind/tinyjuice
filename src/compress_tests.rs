@@ -707,3 +707,102 @@ async fn router_disabled_is_passthrough() {
     assert!(!res.applied);
     assert_eq!(res.text, big);
 }
+
+#[tokio::test]
+async fn policy_wrappers_preserve_output_when_shell_compaction_is_disabled() {
+    let hint = ContentHint::default();
+    let content = big_log();
+    let make_input = || CompressInput {
+        content: &content,
+        kind: ContentKind::Log,
+        hint: &hint,
+        exit_code: Some(0),
+        command: Some("custom command".into()),
+        argv: None,
+        original_bytes: content.len(),
+    };
+    let store = cache::MemoryCcrStore::default();
+    let out = route_with_store_shell_policy(
+        make_input(),
+        &opts(),
+        &store,
+        ShellCompactionPolicy::SkipAll,
+    )
+    .await;
+    assert_eq!(out.text, content);
+    assert!(!out.applied);
+    let out = route_with_shell_policy(make_input(), &opts(), ShellCompactionPolicy::SkipAll).await;
+    assert_eq!(out.text, content);
+    assert!(!out.applied);
+}
+
+#[tokio::test]
+async fn content_gates_disable_search_code_and_html_without_command_fallback() {
+    let store = cache::MemoryCcrStore::default();
+    for kind in [ContentKind::Search, ContentKind::Code, ContentKind::Html] {
+        let content = "ordinary payload without reducible structure ".repeat(40);
+        let hint = ContentHint {
+            explicit: Some(kind),
+            query: Some("force routing".into()),
+            ..Default::default()
+        };
+        let options = CompressOptions {
+            search_enabled: false,
+            code_enabled: false,
+            html_enabled: false,
+            ..opts()
+        };
+        let (out, report) =
+            compress_content_with_store_report(&content, Some(hint), &options, &store).await;
+        assert_eq!(out.text, content);
+        assert!(!out.applied);
+        assert_eq!(report.skip_reason, Some(PipelineSkipReason::NoCompressor));
+    }
+}
+
+#[test]
+fn detect_only_respects_hard_hint_without_transforming_payload() {
+    assert_eq!(
+        detect_only(
+            "payload",
+            &ContentHint {
+                explicit: Some(ContentKind::Html),
+                ..Default::default()
+            }
+        ),
+        ContentKind::Html
+    );
+}
+
+#[tokio::test]
+async fn typed_code_stub_retains_original_and_exposes_structural_preview() {
+    let store = cache::MemoryCcrStore::default();
+    let content = big_code_file();
+    let hint = ContentHint {
+        explicit: Some(ContentKind::Code),
+        extension: Some("rs".into()),
+        read_intent: crate::types::ReadIntent::Stub(crate::types::StubMode::SignaturesOnly),
+        ..Default::default()
+    };
+    let input = CompressInput {
+        content: &content,
+        kind: ContentKind::Code,
+        hint: &hint,
+        command: None,
+        argv: None,
+        exit_code: None,
+        original_bytes: content.len(),
+    };
+    let options = CompressOptions {
+        ccr_min_tokens: 0,
+        ..opts()
+    };
+    let out = route_with_store(input, &options, &store).await;
+    assert!(out.applied && out.lossy, "{out:?}");
+    assert_eq!(out.compressor, CompressorKind::Code);
+    assert!(out.body.contains("pub fn worker_0"));
+    assert_eq!(
+        store.get(out.ccr_token.as_deref().unwrap()).as_deref(),
+        Some(content.as_str())
+    );
+}

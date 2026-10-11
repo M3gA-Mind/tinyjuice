@@ -122,3 +122,22 @@ fn configured_recorder_receives_compaction_event() {
     );
     configure_recorder(None);
 }
+
+#[test]
+fn accounting_and_source_labels_match_serialized_values() {
+    for (class, label) in [
+        (AccountingClass::Counted, "counted"),
+        (AccountingClass::Measured, "measured"),
+        (AccountingClass::Estimated, "estimated"),
+    ] {
+        assert_eq!(class.as_str(), label);
+        assert_eq!(serde_json::to_value(class).unwrap(), label);
+    }
+    for (source, label) in [
+        (SavingsRecordSource::Live, "live"),
+        (SavingsRecordSource::FixtureBenchmark, "fixture_benchmark"),
+    ] {
+        assert_eq!(source.as_str(), label);
+        assert_eq!(serde_json::to_value(source).unwrap(), label);
+    }
+}

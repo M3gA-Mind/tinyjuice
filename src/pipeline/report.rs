@@ -102,3 +102,7 @@ impl PipelineReport {
         self
     }
 }
+
+#[cfg(test)]
+#[path = "report_tests.rs"]
+mod tests;

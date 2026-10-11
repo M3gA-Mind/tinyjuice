@@ -328,3 +328,7 @@ fn clip_line(line: &str, max: usize) -> String {
     }
     line.chars().take(max).collect::<String>() + "…"
 }
+
+#[cfg(test)]
+#[path = "sed_tests.rs"]
+mod tests;

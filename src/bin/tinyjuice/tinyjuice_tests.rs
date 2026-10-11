@@ -256,3 +256,32 @@ fn claude_support_git_signature_is_noop_when_present() {
     assert!(result.backup_path.is_none());
     assert!(!path.with_extension("bak").exists());
 }
+
+#[test]
+fn unsupported_attribution_and_config_io_failures_return_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    for host in [
+        TinyJuiceHost::GenericJson,
+        TinyJuiceHost::OpenHuman,
+        TinyJuiceHost::RustHarness,
+    ] {
+        assert!(install_support_git_signature(host, dir.path()).is_err());
+        assert_eq!(default_hook_path(host), home_dir());
+    }
+    assert!(install_codex_support_git_signature(dir.path()).is_err());
+    assert!(install_claude_support_git_signature(dir.path()).is_err());
+    assert!(load_or_empty_json(dir.path()).is_err());
+    assert!(uninstall_hook_config(TinyJuiceHost::Codex, dir.path()).is_err());
+    let mut config = Value::Null;
+    assert!(
+        ensure_object_field(&mut config, "hooks")
+            .unwrap()
+            .is_empty()
+    );
+    config = serde_json::json!({"hooks": "invalid"});
+    assert!(
+        ensure_object_field(&mut config, "hooks")
+            .unwrap()
+            .is_empty()
+    );
+}

@@ -84,6 +84,10 @@ async fn a_cache_miss_does_not_tell_the_model_to_re_run() {
 fn the_tool_identity_is_stable() {
     let tool = tool_over(|_| Ok(None));
     assert_eq!(tool.name(), "retrieve_tool_output");
+    assert_eq!(
+        tool.description(),
+        tinyjuice_bus::tools::RETRIEVE_TOOL_DESCRIPTION
+    );
     assert_eq!(tool.permission_level(), PermissionLevel::ReadOnly);
     assert_eq!(tool.parameters_schema()["required"], json!(["hash"]));
 }

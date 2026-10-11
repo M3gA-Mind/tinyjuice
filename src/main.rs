@@ -1303,3 +1303,7 @@ fn print_install_usage() {
 fn print_uninstall_usage() {
     println!("Usage: tinyjuice uninstall codex [--codex-home DIR]");
 }
+
+#[cfg(test)]
+#[path = "main_tests.rs"]
+mod tests;

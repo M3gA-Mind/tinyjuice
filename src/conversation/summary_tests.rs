@@ -124,3 +124,140 @@ fn normalizes_historical_summary_wrappers() {
     assert!(!normalized.contains(SUMMARY_END_MARKER));
     assert!(normalized.contains("keep this"));
 }
+
+#[test]
+fn prompt_carries_previous_summary_and_historical_tool_context_without_nesting() {
+    let previous = StructuredSummary {
+        goal: vec!["previous goal".into()],
+        ..Default::default()
+    };
+    let mut request = SummaryRequest::new(vec![
+        ConversationMessage::user("historical ask"),
+        compaction_summary_message(&previous),
+        ConversationMessage::AssistantToolCalls {
+            text: Some("reading files".into()),
+            tool_calls: vec![ToolCall::new("call", "read_file", "{}")],
+            metadata: None,
+        },
+        ConversationMessage::tool_results(vec![ToolResultMessage::new("call", "file contents")]),
+    ]);
+    assert_eq!(request.max_output_bytes, 12 * 1024);
+    request.previous_summary = Some(previous);
+    let prompt = build_summary_prompt(&request);
+    assert!(prompt.contains("Previous structured summary"));
+    assert!(prompt.contains("previous goal"));
+    assert!(prompt.contains("chat role=user content=historical ask"));
+    assert!(prompt.contains("calls=[call:read_file]"));
+    assert!(prompt.contains("tool_results [call:file contents]"));
+    assert!(!prompt.contains(SUMMARY_END_MARKER));
+}
+
+#[test]
+fn failure_policy_requires_explicit_lossy_fallback_and_retries_ineffective_compression() {
+    let default = SummaryFailurePolicy::default();
+    for kind in [
+        SummaryErrorKind::NoProvider,
+        SummaryErrorKind::ModelUnavailable,
+        SummaryErrorKind::Timeout,
+        SummaryErrorKind::MalformedOutput,
+        SummaryErrorKind::Other,
+        SummaryErrorKind::Permission,
+    ] {
+        let error = SummaryError::new(kind, "unavailable");
+        assert_eq!(
+            decide_summary_failure(&error, default).action,
+            SummaryFailureAction::PreserveMessages
+        );
+        let allowed = SummaryFailurePolicy {
+            allow_lossy_fallback: true,
+            ..default
+        };
+        let decision = decide_summary_failure(&error, allowed);
+        let fallback = !matches!(kind, SummaryErrorKind::Other | SummaryErrorKind::Permission);
+        assert_eq!(decision.messages_dropped, fallback);
+        assert_eq!(
+            decision.action,
+            if fallback {
+                SummaryFailureAction::UseDeterministicFallback
+            } else {
+                SummaryFailureAction::PreserveMessages
+            }
+        );
+    }
+    assert_eq!(
+        decide_summary_failure(
+            &SummaryError::new(SummaryErrorKind::IneffectiveCompression, ""),
+            default
+        )
+        .action,
+        SummaryFailureAction::RetryLater
+    );
+}
+
+#[test]
+fn fallback_collects_nested_paths_actions_and_blockers_with_section_limits() {
+    let messages = vec![
+        compaction_summary_message(&StructuredSummary::default()),
+        ConversationMessage::assistant("finished /tmp/result password=hidden"),
+        ConversationMessage::system("blocked by denied access"),
+        ConversationMessage::AssistantToolCalls {
+            text: Some("reading ./src/lib.rs".into()),
+            tool_calls: vec![ToolCall::new(
+                "read",
+                "read_file",
+                r#"{"nested":[{"path":"/tmp/input","workdir":"../work","ignored":42}]}"#,
+            )],
+            metadata: None,
+        },
+        ConversationMessage::user("a".repeat(500)),
+        ConversationMessage::user("second ask should not fit"),
+    ];
+    let summary = deterministic_fallback_summary(
+        &messages,
+        DeterministicSummaryOptions {
+            max_items_per_section: 1,
+            ..Default::default()
+        },
+    );
+    assert_eq!(summary.completed_actions.len(), 1);
+    assert!(!summary.completed_actions[0].contains("hidden"));
+    assert_eq!(summary.blockers, vec!["blocked by denied access"]);
+    assert_eq!(summary.active_state, vec!["tool call read: read_file"]);
+    assert_eq!(summary.relevant_files.len(), 1);
+    assert_eq!(summary.historical_pending_asks.len(), 1);
+    assert!(summary.historical_pending_asks[0].ends_with("..."));
+    let mut paths = BTreeSet::new();
+    collect_json_paths(
+        &json!({"nested":[{"path":"/tmp/input","workdir":"../work"}]}),
+        &mut paths,
+    );
+    assert!(paths.contains("/tmp/input") && paths.contains("../work"));
+}
+
+#[test]
+fn summary_budget_clamps_sections_and_handles_below_wrapper_budget() {
+    let mut summary = StructuredSummary {
+        goal: vec!["é".repeat(500); 20],
+        ..Default::default()
+    };
+    clamp_summary(&mut summary, 1200);
+    assert!(render_structured_summary(&summary).len() <= 1200);
+    assert!(summary.goal.len() < 20);
+    clamp_summary(&mut summary, 0);
+    assert!(summary.goal.is_empty());
+    assert!(rehydrate_summary_from_message(&ConversationMessage::tool_results(vec![])).is_none());
+    let normalized =
+        normalize_summary_text(&render_structured_summary(&StructuredSummary::default()));
+    assert!(!normalized.contains(SUMMARY_PREFIX));
+    assert!(!normalized.contains(SUMMARY_END_MARKER));
+    let (out, report) = upsert_compaction_summary(
+        &[
+            ConversationMessage::system("system"),
+            ConversationMessage::tool_results(vec![]),
+            ConversationMessage::user("live"),
+        ],
+        &StructuredSummary::default(),
+    );
+    assert_eq!(report.inserted_index, 1);
+    assert_eq!(out.len(), 4);
+}

@@ -69,7 +69,7 @@ impl TemplateRun {
 
 /// Drain-inspired online mining over `lines`: walk once, growing a run while
 /// successive lines share the token count and match the running template at
-/// ≥ [`MATCH_RATIO`] of positions; break the run otherwise. Returns only the
+/// ≥ `MATCH_RATIO` of positions; break the run otherwise. Returns only the
 /// emittable runs, in line order.
 pub fn mine(lines: &[&str]) -> Vec<TemplateRun> {
     let mut out: Vec<TemplateRun> = Vec::new();
@@ -114,7 +114,7 @@ pub fn mine(lines: &[&str]) -> Vec<TemplateRun> {
 }
 
 /// Fraction of positions where `tokens` matches the run's template (wildcard
-/// columns always count as a match) is ≥ [`MATCH_RATIO`].
+/// columns always count as a match) is ≥ `MATCH_RATIO`.
 fn matches(run: &TemplateRun, tokens: &[&str]) -> bool {
     if tokens.is_empty() {
         return false;
@@ -144,7 +144,7 @@ fn merge(run: &mut TemplateRun, tokens: &[&str]) {
 }
 
 /// Summarise a dropped region. Returns one display line per template when the
-/// region is dominated by ≤ [`MAX_REGION_TEMPLATES`] emittable templates that
+/// region is dominated by ≤ `MAX_REGION_TEMPLATES` emittable templates that
 /// together cover most of the region; otherwise `None` (the caller then emits a
 /// plain omission marker). Purely descriptive — recovery still rides on the
 /// marker's CCR token.

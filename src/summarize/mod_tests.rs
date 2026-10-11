@@ -612,3 +612,32 @@ fn a_single_huge_line_is_sampled_by_characters() {
     // A budget smaller than the markers is still honored.
     assert!(sample_for_budget(&raw, Some("abc"), 40).chars().count() <= 40);
 }
+
+#[tokio::test]
+async fn summary_cache_and_breakers_evict_oldest_entries() {
+    let _guard = llm::callback_test_guard().await;
+    let first = cache_key("eviction", "tool", None, "first");
+    remember_summary(first, "original".into());
+    remember_summary(first, "updated".into());
+    assert_eq!(cached_summary(&first).as_deref(), Some("updated"));
+    for i in 0..CACHE_ENTRIES {
+        remember_summary(
+            cache_key("eviction", "tool", None, &i.to_string()),
+            "note".into(),
+        );
+    }
+    assert_eq!(cached_summary(&first), None);
+    let newest = cache_key("eviction", "tool", None, &(CACHE_ENTRIES - 1).to_string());
+    assert_eq!(cached_summary(&newest).as_deref(), Some("note"));
+    for _ in 0..MAX_CONSECUTIVE_FAILURES {
+        record_failure("oldest-eviction-scope");
+    }
+    assert!(breaker_tripped("oldest-eviction-scope"));
+    for i in 0..BREAKER_SCOPES {
+        record_failure(&format!("eviction-scope-{i}"));
+    }
+    assert!(!breaker_tripped("oldest-eviction-scope"));
+    for i in 0..BREAKER_SCOPES {
+        record_success(&format!("eviction-scope-{i}"));
+    }
+}
