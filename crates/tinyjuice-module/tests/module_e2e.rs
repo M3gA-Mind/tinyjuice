@@ -102,6 +102,7 @@ async fn the_built_module_compresses_and_recovers_over_a_real_broker() {
     assert!(matches!(modules.list()[0].state, ModuleState::Ready));
 
     compact_with_calls_back_to_the_host_for_a_focused_summary(&client, &proxy).await;
+    savings_are_computed_and_persisted_inside_the_loaded_module(&proxy).await;
     broker_task.abort();
 }
 
@@ -384,4 +385,38 @@ async fn typed_queries_execute_in_the_loaded_artifact(proxy: &tinybus::Proxy, to
     assert!(markdown.contains("# Heading"));
     assert!(markdown.contains("[details](/details)"));
     assert!(!markdown.contains("secret()"));
+}
+
+async fn savings_are_computed_and_persisted_inside_the_loaded_module(proxy: &tinybus::Proxy) {
+    use tinyjuice_bus::names::methods;
+    use tinyjuice_bus::savings::{RecordSavingsRequest, SavingsAggregate};
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("savings.json");
+    proxy
+        .call::<()>(methods::CONFIGURE_SAVINGS, (path.to_str().unwrap(),))
+        .await
+        .unwrap();
+    proxy.call::<()>(methods::RESET_SAVINGS, ()).await.unwrap();
+    proxy
+        .call::<()>(
+            methods::RECORD_SAVINGS,
+            (RecordSavingsRequest {
+                model: "test-model".into(),
+                compressor: "generic".into(),
+                original_tokens: 2_000_000,
+                compacted_tokens: 1_000_000,
+                input_per_mtok_usd: Some(3.0),
+            },),
+        )
+        .await
+        .unwrap();
+    let stats: SavingsAggregate = proxy.call(methods::SAVINGS_STATS, ()).await.unwrap();
+    assert_eq!(stats.total.tokens_saved, 1_000_000);
+    assert_eq!(stats.by_model["test-model"].cost_saved_usd, 3.0);
+    let persisted: SavingsAggregate =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(persisted.by_compressor["generic"].events, 1);
+    proxy.call::<()>(methods::RESET_SAVINGS, ()).await.unwrap();
+    let stats: SavingsAggregate = proxy.call(methods::SAVINGS_STATS, ()).await.unwrap();
+    assert_eq!(stats.total.events, 0);
 }

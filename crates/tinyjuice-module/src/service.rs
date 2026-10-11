@@ -177,7 +177,10 @@ impl Compression {
         Ok(())
     }
 
-    async fn record_savings(&self, request: tinyjuice_bus::savings::RecordSavingsRequest) -> BusResult<()> {
+    async fn record_savings(
+        &self,
+        request: tinyjuice_bus::savings::RecordSavingsRequest,
+    ) -> BusResult<()> {
         savings_ledger().record(&request);
         Ok(())
     }
@@ -190,7 +193,6 @@ impl Compression {
         savings_ledger().reset();
         Ok(())
     }
-
 }
 
 /// Requests may narrow a budget but never expand the module's stock ceilings.
@@ -309,6 +311,7 @@ mod exports {
 mod tests;
 
 fn savings_ledger() -> &'static tinyjuice::savings::ledger::SavingsLedger {
-    static LEDGER: std::sync::OnceLock<tinyjuice::savings::ledger::SavingsLedger> = std::sync::OnceLock::new();
+    static LEDGER: std::sync::OnceLock<tinyjuice::savings::ledger::SavingsLedger> =
+        std::sync::OnceLock::new();
     LEDGER.get_or_init(tinyjuice::savings::ledger::SavingsLedger::new)
 }

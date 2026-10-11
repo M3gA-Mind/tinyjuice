@@ -1,7 +1,7 @@
 //! Persisted savings totals and requests shared with the compression module.
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Per-key (model / compressor) rolled-up savings.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -25,7 +25,6 @@ pub struct SavingsAggregate {
     /// Breakdown by which compressor produced the saving.
     pub by_compressor: HashMap<String, SavingsBucket>,
 }
-
 
 /// One compaction attributed to the model that would consume its output.
 #[derive(Debug, Clone, Serialize, Deserialize)]

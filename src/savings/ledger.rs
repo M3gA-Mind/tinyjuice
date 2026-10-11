@@ -55,23 +55,38 @@ impl SavingsLedger {
             return;
         }
         let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
-        let cost = request.input_per_mtok_usd
+        let cost = request
+            .input_per_mtok_usd
             .filter(|price| price.is_finite() && *price >= 0.0)
             .map_or(0.0, |price| {
-                (request.original_tokens - request.compacted_tokens) as f64
-                    / 1_000_000.0 * price
+                (request.original_tokens - request.compacted_tokens) as f64 / 1_000_000.0 * price
             });
         let aggregate = &mut state.aggregate;
         add(&mut aggregate.total, request, cost);
-        add(aggregate.by_model.entry(request.model.clone()).or_default(), request, cost);
-        add(aggregate.by_compressor.entry(request.compressor.clone()).or_default(), request, cost);
+        add(
+            aggregate.by_model.entry(request.model.clone()).or_default(),
+            request,
+            cost,
+        );
+        add(
+            aggregate
+                .by_compressor
+                .entry(request.compressor.clone())
+                .or_default(),
+            request,
+            cost,
+        );
         persist(&state);
     }
 
     /// Returns a consistent copy of all current totals.
     #[must_use]
     pub fn stats(&self) -> SavingsAggregate {
-        self.state.lock().unwrap_or_else(|p| p.into_inner()).aggregate.clone()
+        self.state
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .aggregate
+            .clone()
     }
 
     /// Clears totals and writes the empty persisted snapshot.
@@ -91,7 +106,9 @@ fn add(bucket: &mut SavingsBucket, request: &RecordSavingsRequest, cost: f64) {
 }
 
 fn persist(state: &State) {
-    let Some(path) = state.snapshot_path.as_ref() else { return; };
+    let Some(path) = state.snapshot_path.as_ref() else {
+        return;
+    };
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
