@@ -102,8 +102,6 @@ pub struct SdkCompressOptions {
     #[serde(default)]
     pub html_enabled: Option<bool>,
     #[serde(default)]
-    pub ml_text_enabled: Option<bool>,
-    #[serde(default)]
     pub min_bytes_to_compress: Option<usize>,
     #[serde(default)]
     pub min_bytes_to_compress_log: Option<usize>,
@@ -136,9 +134,6 @@ impl SdkCompressOptions {
         }
         if let Some(value) = self.html_enabled {
             opts.html_enabled = value;
-        }
-        if let Some(value) = self.ml_text_enabled {
-            opts.ml_text_enabled = value;
         }
         if let Some(value) = self.min_bytes_to_compress {
             opts.min_bytes_to_compress = value;
@@ -333,7 +328,6 @@ impl From<CompressOptions> for SdkCompressOptions {
             search_enabled: Some(value.search_enabled),
             code_enabled: Some(value.code_enabled),
             html_enabled: Some(value.html_enabled),
-            ml_text_enabled: Some(value.ml_text_enabled),
             min_bytes_to_compress: Some(value.min_bytes_to_compress),
             min_bytes_to_compress_log: Some(value.min_bytes_to_compress_log),
             ccr_min_tokens: Some(value.ccr_min_tokens),
@@ -362,7 +356,6 @@ pub async fn compress_request(request: SdkCompressionRequest) -> SdkCompressionR
         AgentTokenjuiceCompression::Light => {
             opts.ccr_enabled = false;
             opts.lossy_without_ccr = false;
-            opts.ml_text_enabled = false;
         }
         AgentTokenjuiceCompression::Auto | AgentTokenjuiceCompression::Full => {}
     }

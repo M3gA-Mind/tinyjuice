@@ -330,8 +330,6 @@ pub enum CompressorKind {
     Diff,
     /// HTML→text extractor.
     Html,
-    /// ML (Python/ModernBERT) plain-text compressor.
-    MlText,
     /// Deterministic extractive plain-text compressor.
     TextCrusher,
     /// Line-oriented head/tail fallback.
@@ -354,7 +352,6 @@ impl CompressorKind {
             CompressorKind::Search => "search",
             CompressorKind::Diff => "diff",
             CompressorKind::Html => "html",
-            CompressorKind::MlText => "ml_text",
             CompressorKind::TextCrusher => "textcrusher",
             CompressorKind::Generic => "generic",
             CompressorKind::LlmSummary => "llm_summary",
@@ -378,7 +375,6 @@ impl std::str::FromStr for CompressorKind {
             "search" => Self::Search,
             "diff" => Self::Diff,
             "html" => Self::Html,
-            "ml_text" => Self::MlText,
             "textcrusher" => Self::TextCrusher,
             "generic" => Self::Generic,
             "llm_summary" => Self::LlmSummary,
@@ -419,9 +415,6 @@ pub struct CompressOptions {
     pub search_enabled: bool,
     pub code_enabled: bool,
     pub html_enabled: bool,
-    /// Whether the ML plain-text compressor may be used (further gated at
-    /// runtime by Python/runtime_python_server availability).
-    pub ml_text_enabled: bool,
     /// Outputs below this many bytes are never compressed.
     pub min_bytes_to_compress: usize,
     /// Lower size floor for log-like content (detected `Log` kind or command
@@ -517,7 +510,6 @@ impl Default for CompressOptions {
             search_enabled: true,
             code_enabled: true,
             html_enabled: true,
-            ml_text_enabled: false,
             min_bytes_to_compress: 2048,
             min_bytes_to_compress_log: 512,
             ccr_min_tokens: 500,

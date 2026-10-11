@@ -113,8 +113,6 @@ compressor upgrades, P2 slices — all specified in the port plan.
   canonical `tokenjuice_retrieve` plus legacy `retrieve_tool_output`. The
   legacy tool now delegates to the canonical implementation; remaining Phase 3
   work is migration cleanup, not behavior divergence.
-- `ml_compression_enabled` (Kompress bridge) stays default-off until tag
-  protection fixtures exist.
 
 ## Reporting
 

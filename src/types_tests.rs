@@ -34,7 +34,6 @@ fn compressor_kind_labels_are_stable() {
         (CompressorKind::Search, "search"),
         (CompressorKind::Diff, "diff"),
         (CompressorKind::Html, "html"),
-        (CompressorKind::MlText, "ml_text"),
         (CompressorKind::Generic, "generic"),
         (CompressorKind::None, "none"),
     ];

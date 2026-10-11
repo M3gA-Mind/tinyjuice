@@ -14,7 +14,6 @@ pub mod html;
 pub mod json;
 pub mod log;
 pub mod log_template;
-pub mod ml_text;
 pub mod search;
 pub mod signals;
 pub mod text;
@@ -33,8 +32,8 @@ pub trait Compressor: Send + Sync {
 
     /// Compress `input`. Return `None` to decline (the router passes the
     /// original through). `Some` carries the compacted body and whether data
-    /// was dropped. Async so the ML compressor can talk to its Python sidecar
-    /// without a blocking bridge; native compressors complete synchronously.
+    /// was dropped. Async so compressors can perform asynchronous work while
+    /// native compressors complete synchronously.
     async fn compress(
         &self,
         input: &CompressInput<'_>,
@@ -53,8 +52,7 @@ static GENERIC_COMPRESSOR: generic::GenericCompressor = generic::GenericCompress
 
 /// Map a detected [`ContentKind`] to the compressor that handles it.
 ///
-/// `PlainText` routes to the text compressor, which tries the optional ML path
-/// first and then the deterministic extractive TextCrusher fallback.
+/// `PlainText` routes to the deterministic extractive TextCrusher.
 pub fn compressor_for(kind: ContentKind) -> &'static dyn Compressor {
     match kind {
         ContentKind::Json => &JSON_COMPRESSOR,

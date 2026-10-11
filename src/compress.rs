@@ -322,8 +322,8 @@ pub async fn route_with_store_report_shell_policy(
         Some(c) => c.compress(&input, opts).await,
         None => None,
     };
-    // When the specialised compressor declines (including plain text with the
-    // ML compressor off), fall back to the generic head/tail path. It runs the
+    // When the specialised compressor declines, fall back to the generic
+    // head/tail path. It runs the
     // rule engine for *command* output (so e.g. `git status` still compacts even
     // though it carries no log signal) and declines for domain-tool payloads.
     if produced.is_none() {
@@ -555,7 +555,7 @@ fn try_typed_route(
             run_typed_pipeline(pipeline_input, &reformats, &offloads, store)
         }
         ContentKind::PlainText => {
-            if opts.ml_text_enabled || !ccr_for_call {
+            if !ccr_for_call {
                 return None;
             }
             let transform = input

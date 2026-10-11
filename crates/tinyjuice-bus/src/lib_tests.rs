@@ -124,7 +124,6 @@ fn the_flattened_spellings_round_trip_for_every_variant() {
         CompressorKind::Search,
         CompressorKind::Diff,
         CompressorKind::Html,
-        CompressorKind::MlText,
         CompressorKind::TextCrusher,
         CompressorKind::Generic,
         CompressorKind::LlmSummary,
