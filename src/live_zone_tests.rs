@@ -117,3 +117,55 @@ fn volatile_detector_reports_redacted_findings_only() {
         assert!(!finding.redacted_sample.contains(hash));
     }
 }
+
+#[test]
+fn validates_ranges_and_rejects_overlapping_or_undeclared_replacements() {
+    assert_eq!(ByteRange::new(3, 1).len(), 0);
+    assert!(ByteRange::new(3, 1).is_empty());
+    assert_eq!(ByteRange::new(0, 2).len(), 2);
+    let input = "é abcdef";
+    let zone = LiveZone::new(
+        "p",
+        "s",
+        ByteRange::new(0, 2),
+        vec![ByteRange::new(3, input.len())],
+    )
+    .with_frozen_block_count(2);
+    assert_eq!(zone.frozen_block_count, 2);
+    for (ranges, expected) in [
+        (vec![ByteRange::new(1, 2)], LiveZoneError::InvalidRange),
+        (
+            vec![ByteRange::new(2, 3)],
+            LiveZoneError::ReplacementOutsideMutableBlock,
+        ),
+        (
+            vec![ByteRange::new(3, 5), ByteRange::new(4, 6)],
+            LiveZoneError::OverlappingReplacements,
+        ),
+    ] {
+        let replacements: Vec<_> = ranges
+            .into_iter()
+            .map(|r| LiveZoneReplacement::new(r, "x"))
+            .collect();
+        assert_eq!(
+            splice_live_zone_replacements(input, &zone, &replacements),
+            Err(expected)
+        );
+    }
+    let invalid = LiveZone::new("p", "s", ByteRange::new(0, 1), vec![]);
+    assert_eq!(
+        splice_live_zone_replacements(input, &invalid, &[]),
+        Err(LiveZoneError::InvalidRange)
+    );
+    assert!(detect_volatile_cache_values(input, ByteRange::new(0, 1)).is_empty());
+}
+
+#[test]
+fn reports_hash_kinds_with_offsets_and_redacted_labels() {
+    let input = format!("prefix {} {} suffix", "a".repeat(32), "b".repeat(40));
+    let findings = detect_volatile_cache_values(&input, ByteRange::new(7, input.len()));
+    assert_eq!(findings.len(), 2);
+    assert_eq!(findings[0].kind.as_str(), "md5_hex");
+    assert_eq!(findings[1].kind.as_str(), "sha1_hex");
+    assert_eq!(findings[0].range.start, 7);
+}

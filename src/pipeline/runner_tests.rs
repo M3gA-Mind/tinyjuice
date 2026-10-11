@@ -126,3 +126,58 @@ fn offload_store_failure_declines_lossy_output() {
         Some(PipelineSkipReason::CcrNotRetained)
     );
 }
+
+struct DecliningReformat;
+impl ReformatTransform for DecliningReformat {
+    fn name(&self) -> &'static str {
+        "declining"
+    }
+    fn applies_to(&self, _: &PipelineInput<'_>) -> bool {
+        true
+    }
+    fn apply(&self, _: &PipelineInput<'_>) -> Option<TransformOutput> {
+        None
+    }
+}
+
+#[test]
+fn skips_inapplicable_declining_and_nonshrinking_reformats() {
+    let store = MemoryCcrStore::default();
+    let transforms: [&dyn ReformatTransform; 2] = [&SpaceReformat, &DecliningReformat];
+    let out = run_typed_pipeline(input("alpha beta"), &transforms, &[], &store);
+    assert_eq!(out.text, "alpha beta");
+    assert_eq!(out.report.skipped_steps.len(), 2);
+    assert!(out.report.applied_steps.is_empty());
+    // Two leading spaces are replaced by one separator, but a trailing newline
+    // would preserve the length. All-whitespace input shrinks successfully.
+    let out = run_typed_pipeline(input("a  b"), &[&SpaceReformat], &[], &store);
+    assert_eq!(out.text, "a b");
+}
+
+struct ExpandingReformat;
+impl ReformatTransform for ExpandingReformat {
+    fn name(&self) -> &'static str {
+        "expanding"
+    }
+    fn applies_to(&self, _: &PipelineInput<'_>) -> bool {
+        true
+    }
+    fn apply(&self, input: &PipelineInput<'_>) -> Option<TransformOutput> {
+        Some(TransformOutput::new(
+            format!("{}!", input.content),
+            CompressorKind::Generic,
+        ))
+    }
+}
+
+#[test]
+fn rejects_reformat_that_expands_input() {
+    let store = MemoryCcrStore::default();
+    let out = run_typed_pipeline(input("body"), &[&ExpandingReformat], &[], &store);
+    assert_eq!(out.text, "body");
+    assert_eq!(out.kind, CompressorKind::None);
+    assert_eq!(
+        out.report.skipped_steps[0].compressor,
+        Some(CompressorKind::Generic)
+    );
+}

@@ -59,3 +59,8 @@ async fn runs_fallback_for_command_context() {
     assert!(output.lossy);
     assert!(output.text.len() < content.len());
 }
+
+#[test]
+fn identifies_generic_strategy() {
+    assert_eq!(GenericCompressor.kind(), CompressorKind::Generic);
+}

@@ -146,3 +146,45 @@ async fn rejected_handle_view_leaves_no_saved_file() {
     assert_eq!(leftover, 0, "unreferenced copy left behind");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn stats_cover_scalar_and_heterogeneous_json_without_values() {
+    for (text, label) in [
+        ("null", "null"),
+        ("true", "bool"),
+        ("42", "number"),
+        ("\"secret-value\"", "string"),
+        ("[]", "array"),
+    ] {
+        let s = stats::describe(text, ContentKind::Json, 4.0);
+        assert!(s.starts_with(&format!("JSON {label}")), "{s}");
+        assert!(!s.contains("secret-value"));
+    }
+    let s = stats::describe(
+        "[null,true,42,\"secret-value\",[],{}]",
+        ContentKind::Json,
+        4.0,
+    );
+    assert!(s.contains("6 items of mixed"), "{s}");
+    assert!(!s.contains("secret-value"));
+    let object = serde_json::json!({"a":1,"b":2,"c":3,"d":4,"e":5,"f":6,"g":7,"h":8,"i":9});
+    let s = stats::describe(&format!("[{object}]"), ContentKind::Json, 4.0);
+    assert!(s.contains("item keys:") && s.contains('…'), "{s}");
+    let s = stats::describe(&object.to_string(), ContentKind::Json, 4.0);
+    assert!(s.contains("9 keys") && s.contains('…'), "{s}");
+    let s = stats::describe(
+        "a.rs:1:hit\nb.rs:2:hit\na.rs:3:hit",
+        ContentKind::Search,
+        4.0,
+    );
+    assert!(s.contains("2 files"), "{s}");
+    let s = stats::describe(
+        "<h1>secret</h1><a href='private'>link</a>",
+        ContentKind::Html,
+        4.0,
+    );
+    assert!(
+        s.contains("HTML") && !s.contains("private") && !s.contains("secret"),
+        "{s}"
+    );
+}
