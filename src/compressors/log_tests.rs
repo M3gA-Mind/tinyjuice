@@ -242,3 +242,69 @@ fn non_log_data_passes_through() {
     }
     assert!(compress_signal(&s).is_none());
 }
+
+#[test]
+fn signal_limits_warnings_errors_and_stack_traces_but_keeps_boundaries() {
+    let mut lines: Vec<String> = (0..110).map(|i| format!("ordinary info {i}")).collect();
+    for i in 0..20 {
+        lines.push(format!("ERROR unique failure {i}"));
+    }
+    for word in ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"] {
+        lines.push(format!("WARN distinct {word}"));
+    }
+    for i in 0..25 {
+        lines.push(format!("    at function_{i} (file.rs:{i})"));
+    }
+    lines.push("tail ordinary info".into());
+    let out = compress_signal(&lines.join("\n")).unwrap();
+    assert!(out.text.contains("ERROR unique failure 0"));
+    assert!(out.text.contains("ERROR unique failure 19"));
+    assert!(!out.text.contains("ERROR unique failure 10\n"));
+    assert!(out.text.contains("WARN distinct epsilon"));
+    assert!(!out.text.contains("WARN distinct zeta"));
+    assert!(out.text.contains("at function_19") && !out.text.contains("at function_20"));
+    assert!(out.text.contains("line(s) omitted"));
+}
+
+#[test]
+fn signal_caps_summary_lines_and_declines_when_markers_would_expand_output() {
+    let content = (0..150)
+        .map(|i| format!("build succeeded for component {i}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let out = compress_signal(&content).unwrap();
+    assert!(out.text.contains("component 0") && out.text.contains("component 149"));
+    assert!(!out.text.contains("component 75\n"));
+    let content = "x\n".repeat(101) + "ERROR";
+    assert!(compress_signal(&content).is_some());
+    assert_eq!(select_first_last(&[1, 2, 3], 0), Vec::<usize>::new());
+    assert!(is_stack_frame("    #1 frame"));
+    assert!(is_stack_frame("    File \"test.py\""));
+    assert!(!is_stack_frame(""));
+}
+
+#[test]
+fn templates_capture_hex_values_and_escape_special_characters() {
+    let source = (0..30)
+        .map(|i| format!("worker processed item 0x{i:02x} on shard 0xabc{i:02x}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let out = compress_templates(&source).unwrap();
+    assert!(!out.lossy);
+    assert!(out.text.contains("0x00"));
+    assert_eq!(reconstruct_template_reformat(&out.text).trim_end(), source);
+    assert_eq!(escape_capture("a\\b\tc\r"), "a\\\\b\\tc\\r");
+}
+
+#[test]
+fn signal_transform_declines_nonlog_payloads() {
+    let store = MemoryCcrStore::default();
+    let input = PipelineInput {
+        content: "plain",
+        original_content: "plain",
+        content_kind: ContentKind::PlainText,
+        original_bytes: 5,
+    };
+    assert_eq!(SignalLogTransform.estimate_bloat(&input), 0.0);
+    assert!(SignalLogTransform.apply(&input, &store).is_none());
+}
