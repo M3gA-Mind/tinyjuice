@@ -319,3 +319,94 @@ fn stub_code_expand_around_lines_heuristic_expands_containing_body() {
         out.elisions
     );
 }
+
+#[test]
+fn stub_budget_keeps_complete_lines_and_records_tail_elision() {
+    let content = "header\n".to_string() + &"body payload\n".repeat(30);
+    let stub = CodeStubOutput {
+        text: content.clone(),
+        symbols: vec![],
+        elisions: vec![],
+        parse_status: ParseStatus::HeuristicFallback,
+    };
+    let out = enforce_stub_budget(stub.clone(), 120);
+    assert!(out.text.starts_with("header\n"));
+    assert!(out.text.ends_with("[TOKENJUICE CODE STUB TRUNCATED]"));
+    assert!(
+        out.elisions
+            .iter()
+            .any(|e| e.reason == "stub_budget" && e.end_line == 31)
+    );
+    assert_eq!(enforce_stub_budget(stub, 0).text, content);
+}
+
+#[test]
+fn heuristic_stubs_expand_requested_symbols_and_body_lines() {
+    let source = format!(
+        "pub fn selected() {{\n{}}}\nfn other() {{\n{}}}",
+        "    selected_body();\n".repeat(10),
+        "    other_body();\n".repeat(10)
+    );
+    let matched = stub_heuristic(&source, &StubMode::MatchedSymbols(vec!["selected".into()]));
+    assert!(matched.text.contains("selected_body"));
+    assert!(!matched.text.contains("other_body"));
+    let around = stub_heuristic(
+        &source,
+        &StubMode::ExpandAroundLines(vec![LineRange::new(5, 5)]),
+    );
+    assert!(around.text.contains("selected_body"));
+    assert!(!around.text.contains("other_body"));
+    let around_signature = stub_heuristic(
+        &source,
+        &StubMode::ExpandAroundLines(vec![LineRange::new(1, 1)]),
+    );
+    assert!(around_signature.text.contains("selected_body"));
+    let empty_match = stub_heuristic(&source, &StubMode::MatchedSymbols(vec![" ".into()]));
+    assert!(!empty_match.text.contains("selected_body"));
+}
+
+#[test]
+fn heuristic_public_api_handles_private_single_lines_and_unclosed_declarations() {
+    let source = "fn private() {}\npub fn public() {}\nfn unfinished() {\n    inner();";
+    let out = stub_heuristic(source, &StubMode::PublicApi);
+    assert!(out.text.contains("pub fn public"));
+    assert!(!out.text.contains("fn private") && !out.text.contains("fn unfinished"));
+    assert_eq!(out.elisions.len(), 2);
+    assert_eq!(out.elisions[1].end_line, 4);
+    assert!(symbol_from_signature(" ", 1, 1, "function").is_none());
+    assert_eq!(
+        symbol_from_signature("unknown", 1, 1, "function")
+            .unwrap()
+            .name,
+        "function"
+    );
+}
+
+#[test]
+fn typed_stub_declines_noncode_and_nonshrinking_input() {
+    let transform = CodeStubTransform::new(StubMode::SignaturesOnly).with_extension("rs");
+    assert_eq!(transform.mode(), &StubMode::SignaturesOnly);
+    let store = MemoryCcrStore::default();
+    let input = PipelineInput {
+        content: "plain",
+        original_content: "plain",
+        original_bytes: 5,
+        content_kind: ContentKind::PlainText,
+    };
+    assert_eq!(transform.estimate_bloat(&input), 0.0);
+    assert!(transform.apply(&input, &store).is_none());
+    let input = PipelineInput {
+        content: "fn short() {}",
+        original_content: "fn short() {}",
+        original_bytes: 13,
+        content_kind: ContentKind::Code,
+    };
+    assert!(transform.apply(&input, &store).is_none());
+}
+
+#[test]
+fn heuristic_handles_unbalanced_closes_and_short_nested_runs() {
+    let source = "}\nfn a() {\n    x();\n}\n".repeat(4);
+    let out = compress_heuristic(&source);
+    assert!(out.is_none() || out.unwrap().text.contains("x();"));
+}
