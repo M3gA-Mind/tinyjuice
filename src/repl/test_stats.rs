@@ -71,7 +71,10 @@ fn write_handle_file_round_trips_and_is_idempotent() {
         assert_eq!(mode & 0o777, 0o600);
     }
     let _ = std::fs::remove_dir_all(&dir);
-    assert!(write_handle_file(std::path::Path::new("/proc/nope/x"), "abc", "x").is_none());
+    let fixture = tempfile::tempdir().unwrap();
+    let blocked = fixture.path().join("not-a-directory");
+    std::fs::write(&blocked, "fixture").unwrap();
+    assert!(write_handle_file(&blocked.join("child"), "abc", "x").is_none());
 }
 
 #[tokio::test]
