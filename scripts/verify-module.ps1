@@ -43,7 +43,7 @@ try {
     $library = Join-Path $work 'tinyjuice_module.dll'
     if (-not (Test-Path (Join-Path $work 'modules.toml'))) { throw 'modules.toml missing from archive' }
     $env:TINYJUICE_TEST_MODULE = $library
-    cargo test --locked --release --manifest-path Cargo.toml --package tinyjuice-module --test module_e2e -- --ignored
+    cargo test --locked --release --manifest-path Cargo.toml --package tinyjuice-module --test module_e2e_tests -- --ignored
     if ($LASTEXITCODE -ne 0) { throw 'tinyjuice module verification failed' }
 } finally {
     Remove-Item -LiteralPath $work -Recurse -Force

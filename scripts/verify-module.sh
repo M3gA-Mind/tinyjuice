@@ -68,4 +68,4 @@ case "$(uname -s)" in
   *) echo "verify-module.sh requires a Unix runner" >&2; exit 1 ;;
 esac
 test -f "$work/modules.toml"
-TINYJUICE_TEST_MODULE="$library" cargo test --locked --release --manifest-path Cargo.toml --package tinyjuice-module --test module_e2e -- --ignored
+TINYJUICE_TEST_MODULE="$library" cargo test --locked --release --manifest-path Cargo.toml --package tinyjuice-module --test module_e2e_tests -- --ignored
