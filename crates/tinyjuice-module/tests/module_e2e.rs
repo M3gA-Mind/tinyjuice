@@ -3,6 +3,7 @@
 
 use std::time::Duration;
 
+use tinybus::Connection;
 use tinybus::module::ModuleState;
 use tinybus::test_support::{admit_module, start_bus, wait_until_serving};
 use tinyjuice::types::{AgentTokenjuiceCompression, CompressedOutput, ContentHint, ContentKind};
