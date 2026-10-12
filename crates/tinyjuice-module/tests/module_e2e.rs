@@ -3,10 +3,8 @@
 
 use std::time::Duration;
 
-use tinybus::Connection;
-use tinybus::broker::Broker;
-use tinybus::module::{ModuleHost, ModuleState};
-use tinybus::transport::memory::MemoryBus;
+use tinybus::module::ModuleState;
+use tinybus::test_support::{admit_module, start_bus, wait_until_serving};
 use tinyjuice::types::{AgentTokenjuiceCompression, CompressedOutput, ContentHint, ContentKind};
 use tinyjuice_bus::wire::CompactResponse;
 use tinyjuice_module::{BUS_NAME, OBJECT_PATH};
@@ -16,14 +14,9 @@ const EXPECTED_METHODS: &[&str] = tinyjuice_bus::METHODS;
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "requires TINYJUICE_TEST_MODULE to point at the built cdylib"]
 async fn the_built_module_compresses_and_recovers_over_a_real_broker() {
-    let artifact =
-        std::env::var_os("TINYJUICE_TEST_MODULE").expect("TINYJUICE_TEST_MODULE must be set");
-    let bus = MemoryBus::new();
-    let broker = Broker::new();
-    let broker_task = broker.spawn(bus.clone());
-    let modules = ModuleHost::new(broker);
-
-    let loaded = modules.load_file(artifact).expect("module should load");
+    let (modules, client, broker_task) = start_bus().await.expect("memory bus should start");
+    let loaded = admit_module(&modules, "TINYJUICE_TEST_MODULE", "tinyjuice-module")
+        .expect("module should load");
     assert_eq!(loaded.name, "tinyjuice-module");
     assert_eq!(loaded.manifest.bus_name.as_str(), BUS_NAME);
     assert_eq!(loaded.manifest.object_path.as_str(), OBJECT_PATH);
@@ -36,10 +29,9 @@ async fn the_built_module_compresses_and_recovers_over_a_real_broker() {
         .collect();
     assert_eq!(methods, EXPECTED_METHODS);
 
-    let client = Connection::connect(bus.connect().await.expect("memory transport"))
+    wait_until_serving(&client, BUS_NAME, Duration::from_secs(5))
         .await
-        .expect("client should connect");
-    wait_until_serving(&client).await;
+        .expect("module should become ready");
     let proxy = client
         .proxy(BUS_NAME, OBJECT_PATH, BUS_NAME)
         .expect("module proxy");
@@ -246,24 +238,6 @@ async fn compact_with_calls_back_to_the_host_for_a_focused_summary(
     assert!(prompts[1].contains("rate limits for this artifact"));
 }
 
-async fn wait_until_serving(client: &Connection) {
-    tokio::time::timeout(Duration::from_secs(5), async {
-        loop {
-            if client
-                .list_names()
-                .await
-                .expect("names should list")
-                .iter()
-                .any(|name| name.as_str() == BUS_NAME)
-            {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("module should become ready");
-}
 
 /// Every new member is called through the separately loaded artifact.
 async fn typed_queries_execute_in_the_loaded_artifact(proxy: &tinybus::Proxy, token: &str) {
