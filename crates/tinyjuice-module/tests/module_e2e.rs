@@ -7,7 +7,8 @@ use tinybus::Connection;
 use tinybus::broker::Broker;
 use tinybus::module::{ModuleHost, ModuleState};
 use tinybus::transport::memory::MemoryBus;
-use tinyjuice::types::CompressedOutput;
+use tinyjuice::types::{AgentTokenjuiceCompression, CompressedOutput, ContentHint, ContentKind};
+use tinyjuice_bus::wire::CompactResponse;
 use tinyjuice_module::{BUS_NAME, OBJECT_PATH};
 
 const EXPECTED_METHODS: &[&str] = tinyjuice_bus::METHODS;
@@ -70,6 +71,36 @@ async fn the_built_module_compresses_and_recovers_over_a_real_broker() {
         )
         .await
         .expect("install should succeed");
+
+    let detected: String = proxy
+        .call("Detect", ("ordinary content".to_string(), ContentHint::default()))
+        .await
+        .expect("detect should succeed");
+    assert_eq!(detected, ContentKind::PlainText.as_str());
+    assert!(
+        proxy.call::<String>("Detect", ()).await.is_err(),
+        "detect should reject malformed arguments"
+    );
+
+    let compact_content = "compact is disabled for this call";
+    let compacted: CompactResponse = proxy
+        .call(
+            "Compact",
+            (
+                compact_content.to_string(),
+                "web_fetch".to_string(),
+                false,
+                AgentTokenjuiceCompression::Off,
+            ),
+        )
+        .await
+        .expect("compact should return a response when compaction is disabled");
+    assert!(!compacted.applied);
+    assert_eq!(compacted.text, compact_content);
+    assert!(
+        proxy.call::<CompactResponse>("Compact", ()).await.is_err(),
+        "compact should reject malformed arguments"
+    );
 
     let content = (0..200)
         .map(|index| {
