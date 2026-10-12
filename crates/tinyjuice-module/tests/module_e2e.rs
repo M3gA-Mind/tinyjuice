@@ -73,7 +73,10 @@ async fn the_built_module_compresses_and_recovers_over_a_real_broker() {
         .expect("install should succeed");
 
     let detected: String = proxy
-        .call("Detect", ("ordinary content".to_string(), ContentHint::default()))
+        .call(
+            "Detect",
+            ("ordinary content".to_string(), ContentHint::default()),
+        )
         .await
         .expect("detect should succeed");
     assert_eq!(detected, ContentKind::PlainText.as_str());
