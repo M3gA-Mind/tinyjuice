@@ -8,6 +8,11 @@ description = "Trusted TinyBus module adapter for TinyJuice."
 repository = "https://github.com/tinyhumansai/tinyjuice"
 publish = false
 
+[features]
+# Link this adapter into a host binary without exporting the shared C names.
+static-link = []
+linked = ["static-link"]
+
 [lib]
 crate-type = ["rlib", "cdylib"]
 
