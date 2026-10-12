@@ -17,4 +17,8 @@ class VersionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "0.1.2-beta.1")
 
+    def test_windows_e2e_receives_host_and_version_from_shell(self):
+        script = Path(__file__).with_name("test-e2e.sh").read_text()
+        self.assertIn('pwsh -NoProfile -File scripts/test-e2e.ps1 -Target "$target" -Version "$version"', script)
+
 if __name__ == "__main__": unittest.main()
