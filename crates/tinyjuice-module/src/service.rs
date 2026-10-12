@@ -285,9 +285,15 @@ async fn setup(connection: Connection) -> BusResult<()> {
     Ok(())
 }
 
+// Process-global state audit (static-link / co-linking): every process-wide
+// static reachable from this module (the savings ledger below, the `tinyjuice`
+// engine's LLM callback, savings recorders and CCR cache limits) is private to
+// the `tinyjuice` crate, so another module linked into the same executable can
+// neither observe nor clobber it. Only one TinyJuice instance may exist per
+// process, which matches the registry (one `tinyjuice` module).
 #[allow(missing_docs, unreachable_pub)]
-mod exports {
-    tinybus_module::module_export! {
+pub(crate) mod exports {
+    tinybus_module::module_export_optional_static! {
         setup = super::setup,
         worker_threads = 2,
         provides = ["ai.tinyhumans.tinyjuice.Compression"],
