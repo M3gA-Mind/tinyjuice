@@ -55,7 +55,7 @@ class PackageTests(unittest.TestCase):
             linked_parent.symlink_to(real_parent, target_is_directory=True)
             home = linked_parent/"home"
             bindir = fixture/"bin"; bindir.mkdir()
-            (bindir/"uname").write_text("\\n".join(["#!/usr/bin/env bash", "echo Darwin"])+"\\n")
+            (bindir/"uname").write_text("\n".join(["#!/usr/bin/env bash", "echo Darwin"])+"\n")
             (bindir/"uname").chmod(0o755)
             archive = fixture/"module.tar.gz"
             with tarfile.open(archive, "w:gz") as package:
@@ -64,8 +64,8 @@ class PackageTests(unittest.TestCase):
                     package.addfile(member, io.BytesIO(data))
             cargo_called = fixture/"cargo-called"
             cargo = bindir/"cargo"
-            cargo.write_text("\\n".join(["#!/usr/bin/env python3", "import os",
-                "from pathlib import Path", "Path(os.environ['CARGO_WAS_CALLED']).touch()"])+"\\n")
+            cargo.write_text("\n".join(["#!/usr/bin/env python3", "import os",
+                "from pathlib import Path", "Path(os.environ['CARGO_WAS_CALLED']).touch()"])+"\n")
             cargo.chmod(0o755)
             env = dict(os.environ, HOME=str(home), PATH=str(bindir)+os.pathsep+os.environ["PATH"],
                 CARGO_WAS_CALLED=str(cargo_called))
