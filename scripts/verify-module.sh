@@ -34,6 +34,15 @@ reject_symlink_components "$HOME"
 stage_parent="$HOME/.cache"
 mkdir -p "$stage_parent"
 reject_symlink_components "$stage_parent"
+[[ -O "$stage_parent" ]] || {
+  echo "verification cache is not owned by the current user: $stage_parent" >&2
+  exit 2
+}
+insecure_cache="$(find "$stage_parent" -prune \( -perm -002 -o -perm -020 \) ! -perm -01000 -print)"
+if [[ -n "$insecure_cache" ]]; then
+  echo "verification cache is group or world writable without sticky-bit protection: $stage_parent" >&2
+  exit 2
+fi
 work="$(mktemp -d "$stage_parent/tinyjuice-module-verify-XXXXXX")"
 trap 'rm -rf "$work"' EXIT
 case "$archive" in
