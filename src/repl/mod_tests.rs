@@ -1,4 +1,10 @@
 use super::*;
+
+// jq admission is process-wide; expression tests must not compete for its
+// four worker slots, including the worker deliberately abandoned by the
+// deadline test.
+#[cfg(feature = "jq")]
+static JQ_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 use crate::cache::store::MemoryCcrStore;
 
 fn find(query: &str, mode: FindMode) -> ReplOp {
@@ -340,6 +346,7 @@ fn awk_filters_and_projects_fields() {
 #[cfg(feature = "jq")]
 #[test]
 fn jq_queries_json_and_refuses_environment() {
+    let _guard = JQ_TEST_LOCK.lock().unwrap();
     let json =
         r#"{"items":[{"name":"a","size":5},{"name":"b","size":50},{"name":"c","size":500}]}"#;
     let out = run_on_text(
@@ -374,6 +381,7 @@ fn jq_queries_json_and_refuses_environment() {
 #[cfg(feature = "jq")]
 #[test]
 fn jq_deadline_stops_a_runaway_query() {
+    let _guard = JQ_TEST_LOCK.lock().unwrap();
     let start = std::time::Instant::now();
     let r = run_on_text(
         "[1]",
@@ -481,6 +489,7 @@ fn sed_rejects_exploding_substitution() {
 #[cfg(feature = "jq")]
 #[test]
 fn jq_clips_a_single_large_value() {
+    let _guard = JQ_TEST_LOCK.lock().unwrap();
     let big = format!("\"{}\"", "y".repeat(100_000));
     let r = run_on_text(&big, &find(".", FindMode::Jq), &lim()).unwrap();
     let s = serde_json::to_string(&r).unwrap();
@@ -529,6 +538,7 @@ fn a_single_oversized_link_is_clipped() {
 #[cfg(feature = "jq")]
 #[test]
 fn jq_allows_blocked_names_used_as_data() {
+    let _guard = JQ_TEST_LOCK.lock().unwrap();
     let json = r#"{"input":1,"env":2,"items":[{"type":"debug","n":3}]}"#;
     for q in [
         ".input",
