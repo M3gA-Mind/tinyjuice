@@ -238,7 +238,6 @@ async fn compact_with_calls_back_to_the_host_for_a_focused_summary(
     assert!(prompts[1].contains("rate limits for this artifact"));
 }
 
-
 /// Every new member is called through the separately loaded artifact.
 async fn typed_queries_execute_in_the_loaded_artifact(proxy: &tinybus::Proxy, token: &str) {
     use tinyjuice_bus::repl::{ReplLimits, ReplOp, ReplOutput};
