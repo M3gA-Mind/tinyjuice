@@ -91,8 +91,8 @@ class PackageTests(unittest.TestCase):
                     package.addfile(member, io.BytesIO(data))
             cargo_called = fixture/"cargo-called"
             cargo = bindir/"cargo"
-            cargo.write_text("#!/usr/bin/env python3\\nfrom pathlib import Path\\n"
-                "Path(r'"+str(cargo_called)+"').touch()\\n")
+            cargo.write_text("#!/usr/bin/env python3\nfrom pathlib import Path\n"
+                "Path(r'"+str(cargo_called)+"').touch()\n")
             cargo.chmod(0o755)
             env = dict(os.environ, HOME=str(home), PATH=str(bindir)+os.pathsep+os.environ["PATH"])
             env.pop("CARGO_TARGET_DIR", None)
