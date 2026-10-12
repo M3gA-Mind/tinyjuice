@@ -14,6 +14,10 @@ import unittest
 ROOT = Path(__file__).resolve().parent.parent
 
 class PackageTests(unittest.TestCase):
+    def test_arch_pacman_disables_filesystem_sandbox_for_containers(self):
+        script = (ROOT / "scripts/test-distro.sh").read_text()
+        self.assertIn("pacman --disable-sandbox -Syu", script)
+
     def test_release_archive_preserves_module_specification(self):
         workflow = (ROOT/".github/workflows/release.yml").read_text()
         match = re.search(r"extra-packaged-files: *'([^']+)'", workflow)
@@ -43,11 +47,11 @@ class PackageTests(unittest.TestCase):
             alias = root/"checkout-link"; alias.symlink_to(root, target_is_directory=True)
             result = subprocess.run(["bash",str(alias/"scripts/build-module.sh"),
                 "--crate","tinyjuice-module","--version","1.2.3-beta.1",
-                "--target","x86_64-unknown-linux-gnu","--host","linux-fixture",
+                "--target","x86_64-unknown-linux-gnu","--host","ubuntu-22.04-x86_64",
                 "--extra-files-json", '["docs/specs/tinybus-module.md"]'],
                 cwd=root,env=env,text=True,capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr)
-            archive=root/"release-assets/tinyjuice-module-1.2.3-beta.1-linux-fixture.tar.gz"
+            archive=root/"release-assets/tinyjuice-module-1.2.3-beta.1-ubuntu-22.04-x86_64.tar.gz"
             with tarfile.open(archive) as package:
                 data=package.extractfile("./libtinyjuice_module.so").read()
                 manifest=tomllib.loads(package.extractfile("./modules.toml").read().decode())
