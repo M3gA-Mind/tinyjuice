@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 from pathlib import Path
 import shutil
 import subprocess
@@ -16,7 +17,9 @@ ROOT = Path(__file__).resolve().parent.parent
 class PackageTests(unittest.TestCase):
     def test_arch_pacman_disables_filesystem_sandbox_for_containers(self):
         script = (ROOT / "scripts/test-distro.sh").read_text()
-        self.assertIn("pacman --disable-sandbox -Syu", script)
+        pacman = next(line.strip() for line in script.splitlines() if line.strip().startswith("pacman "))
+        self.assertEqual(shlex.split(pacman)[:3], ["pacman", "--disable-sandbox-filesystem", "-Syu"])
+        self.assertNotIn("--disable-sandbox", shlex.split(pacman))
 
     def test_release_archive_preserves_module_specification(self):
         workflow = (ROOT/".github/workflows/release.yml").read_text()
