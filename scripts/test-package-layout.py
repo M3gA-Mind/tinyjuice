@@ -26,7 +26,7 @@ class PackageTests(unittest.TestCase):
             uname.chmod(0o755)
             archive = fixture/"module.tar.gz"
             with tarfile.open(archive, "w:gz") as package:
-                for name, data in [("modules.toml", b""), ("libtinyjuice_module.so", b"module")]:
+                for name, data in [("modules.toml", b""), ("libtinyjuice_module.dylib", b"module")]:
                     member = tarfile.TarInfo(name); member.size = len(data)
                     package.addfile(member, io.BytesIO(data))
             cargo = bindir/"cargo"
