@@ -45,6 +45,36 @@ class PackageTests(unittest.TestCase):
             self.assertTrue(module_path.is_relative_to(home/".cache"), module_path)
             self.assertEqual(Path(str(fixture/"loaded-module-path")+".exists").read_text(), "True")
 
+    def test_verifier_rejects_symlinked_home_path_components(self):
+        target = ROOT / "target"; target.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=target) as directory:
+            fixture = Path(directory)
+            real_parent = fixture/"real-parent"; real_parent.mkdir()
+            (real_parent/"home").mkdir()
+            linked_parent = fixture/"linked-parent"
+            linked_parent.symlink_to(real_parent, target_is_directory=True)
+            home = linked_parent/"home"
+            bindir = fixture/"bin"; bindir.mkdir()
+            (bindir/"uname").write_text("\\n".join(["#!/usr/bin/env bash", "echo Darwin"])+"\\n")
+            (bindir/"uname").chmod(0o755)
+            archive = fixture/"module.tar.gz"
+            with tarfile.open(archive, "w:gz") as package:
+                for name, data in [("modules.toml", b""), ("libtinyjuice_module.dylib", b"module")]:
+                    member = tarfile.TarInfo(name); member.size = len(data)
+                    package.addfile(member, io.BytesIO(data))
+            cargo_called = fixture/"cargo-called"
+            cargo = bindir/"cargo"
+            cargo.write_text("\\n".join(["#!/usr/bin/env python3", "import os",
+                "from pathlib import Path", "Path(os.environ['CARGO_WAS_CALLED']).touch()"])+"\\n")
+            cargo.chmod(0o755)
+            env = dict(os.environ, HOME=str(home), PATH=str(bindir)+os.pathsep+os.environ["PATH"],
+                CARGO_WAS_CALLED=str(cargo_called))
+            env.pop("CARGO_TARGET_DIR", None)
+            result = subprocess.run(["bash", str(ROOT/"scripts/verify-module.sh"),
+                "--archive", str(archive)], cwd=ROOT, env=env, text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertFalse(cargo_called.exists())
+
     def test_arch_pacman_disables_filesystem_sandbox_for_containers(self):
         script = (ROOT / "scripts/test-distro.sh").read_text()
         pacman = next(line.strip() for line in script.splitlines() if line.strip().startswith("pacman "))
