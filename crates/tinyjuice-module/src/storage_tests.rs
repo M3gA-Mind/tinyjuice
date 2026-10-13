@@ -135,3 +135,82 @@ async fn install_moves_the_disk_tier_onto_host_blobs_and_off_again() -> TestResu
     assert!(host_blobs.get(&key).await?.is_none(), "nothing written");
     Ok(())
 }
+
+/// A blob handle that reports no optional abilities (no expiry), over memory.
+#[derive(Debug)]
+struct NoExpiry(Arc<dyn BlobStore>);
+
+#[async_trait::async_trait]
+impl BlobStore for NoExpiry {
+    async fn put(
+        &self,
+        key: &str,
+        bytes: Vec<u8>,
+        content_type: Option<&str>,
+    ) -> tinystoragedrivers_core::Result<tinystoragedrivers_core::BlobMeta> {
+        self.0.put(key, bytes, content_type).await
+    }
+
+    async fn get(
+        &self,
+        key: &str,
+    ) -> tinystoragedrivers_core::Result<Option<tinystoragedrivers_core::Blob>> {
+        self.0.get(key).await
+    }
+
+    async fn get_range(
+        &self,
+        key: &str,
+        range: std::ops::Range<u64>,
+    ) -> tinystoragedrivers_core::Result<Option<Vec<u8>>> {
+        self.0.get_range(key, range).await
+    }
+
+    async fn head(
+        &self,
+        key: &str,
+    ) -> tinystoragedrivers_core::Result<Option<tinystoragedrivers_core::BlobMeta>> {
+        self.0.head(key).await
+    }
+
+    async fn delete(&self, key: &str) -> tinystoragedrivers_core::Result<bool> {
+        self.0.delete(key).await
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_handle_that_cannot_expire_blobs_gets_no_ttl_tier_but_a_keep_forever_one() -> TestResult {
+    let backend = MemoryStorage::new();
+    let blobs: Arc<dyn BlobStore> = Arc::new(NoExpiry(Arc::clone(
+        backend.for_scope(&Scope::local())?.blobs(),
+    )));
+    assert!(
+        tier_on(Arc::clone(&blobs), Some(Duration::from_secs(60)))
+            .await
+            .is_none()
+    );
+    assert!(tier_on(blobs, None).await.is_some());
+    Ok(())
+}
+
+/// Off a multi-thread runtime there is no worker to hand off, so the call runs
+/// in place.
+#[tokio::test(flavor = "current_thread")]
+async fn store_calls_run_in_place_on_a_current_thread_runtime() {
+    struct Fixed;
+    impl CcrStore for Fixed {
+        fn put(&self, content: &str) -> CcrPutResult {
+            tinyjuice::cache::store::MemoryCcrStore::default().put(content)
+        }
+        fn get(&self, _token: &str) -> Option<String> {
+            Some("fixed".into())
+        }
+        fn get_range(&self, _: &str, _: usize, _: usize, _: RangeUnit) -> Option<String> {
+            Some("range".into())
+        }
+    }
+    let store = OffWorker(Fixed);
+    assert!(store.put("x").retained());
+    assert_eq!(store.get("t").as_deref(), Some("fixed"));
+    assert_eq!(store.get_range("t", 0, 1, RangeUnit::Lines).as_deref(), Some("range"));
+}

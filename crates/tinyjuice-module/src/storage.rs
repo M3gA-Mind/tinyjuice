@@ -38,7 +38,12 @@ pub(crate) async fn durable_tier(
     connection: Connection,
     ttl: Option<Duration>,
 ) -> Option<Arc<dyn CcrStore>> {
-    let blobs = blobs(connection).await?;
+    tier_on(blobs(connection).await?, ttl).await
+}
+
+/// The CCR durable tier on `blobs`, or `None` when the store cannot be built
+/// (for example a handle that cannot expire blobs for `ttl`).
+async fn tier_on(blobs: Arc<dyn BlobStore>, ttl: Option<Duration>) -> Option<Arc<dyn CcrStore>> {
     // The store builds a blocking bridge, which must not run on an async worker.
     let opened = tokio::task::spawn_blocking(move || BlobCcrStore::new(blobs, ttl))
         .await
