@@ -13,6 +13,23 @@ The core crate remains independent of OpenHuman runtime internals. OpenHuman and
 other hosts install policy through `CompressOptions`, agent profiles, CCR
 configuration, optional ML callbacks, and optional savings recorders.
 
+### CCR durable tier
+
+`tinyjuice::cache::set_durable_tier(Some(store))` installs a process-global
+`CcrStore` behind the in-memory CCR cache (`None` clears it; each call replaces
+the previous tier). The crate has no storage dependency: a host builds the store
+on whatever backend it has. `tinyjuice-module` uses the host storage bus
+(`tinyjuice-drivers::BlobCcrStore`, expiring blobs).
+
+- Offloads mirror into the tier synchronously, best-effort. The tier counts as
+  retaining an original only when it reports success under the content hash
+  that callers advertise as the recovery token.
+- A memory miss in `retrieve` / `retrieve_range` falls through to the tier.
+- It is independent of the file-backed `enable_disk_tier`, which stays for
+  library users.
+- Store calls may block, so a host must not call them from a single-threaded
+  runtime that also drives the store's transport.
+
 TinyJuice should prefer preventing redundant context from entering the model
 over lossy mid-task prompt compaction. Tool-output reducers, command rules,
 batched operations, validation reports, and explicit recovery metadata are the
