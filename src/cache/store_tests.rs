@@ -418,3 +418,29 @@ fn isolated_store_recovers_its_contents_after_lock_poisoning() {
     let next = store.put("second fixture");
     assert!(next.retained());
 }
+
+#[test]
+fn durable_tier_mirrors_offloads_and_serves_memory_misses() {
+    let durable = Arc::new(MemoryCcrStore::default());
+    set_durable_tier(Some(durable.clone()));
+
+    let mirrored = "durable tier mirrored offload fixture";
+    let (hash, retained) = offload_checked(mirrored);
+    assert!(retained);
+    assert_eq!(durable.get(&hash).as_deref(), Some(mirrored));
+
+    // An original only the durable tier holds (evicted or from before a
+    // restart) is still retrievable, whole and by range.
+    let only_durable = durable.put("durable only\nsecond line");
+    assert_eq!(
+        retrieve(only_durable.token()).as_deref(),
+        Some("durable only\nsecond line")
+    );
+    assert_eq!(
+        retrieve_range(only_durable.token(), 1, 2, RangeUnit::Lines).as_deref(),
+        Some("second line")
+    );
+
+    set_durable_tier(None);
+    assert_eq!(retrieve(only_durable.token()), None, "cleared tier is gone");
+}

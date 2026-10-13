@@ -25,8 +25,16 @@ tinybus = { version = "0.1.4", path = "../../vendor/tinybus/crates/tinybus", def
 tinybus-module = { version = "0.1.4", path = "../../vendor/tinybus/crates/tinybus-module" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde_json = "1"
+# The CCR store's durable tier is blobs on the host's storage ports, reached
+# over the storage bus. The module has no storage backend or file of its own.
+tinyjuice-drivers = { path = "../tinyjuice-drivers" }
+tinystoragedrivers-core = { version = "0.7.0", git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v0.7.0" }
+tinystoragedrivers-busproxy = { version = "0.7.0", git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v0.7.0" }
+log = "0.4"
 
 [dev-dependencies]
+# Tests serve the storage objects on the in-memory broker the module connects to.
+tinystoragedrivers-client = { version = "0.7.0", git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v0.7.0" }
 tinybus = { version = "0.1.4", path = "../../vendor/tinybus/crates/tinybus", default-features = false, features = ["test-support"] }
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
