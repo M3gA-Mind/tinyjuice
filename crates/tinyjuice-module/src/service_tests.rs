@@ -3,6 +3,8 @@ use tinyjuice::types::CompressOptions;
 
 #[tokio::test]
 async fn service_compresses_and_retrieves_a_large_log() {
+    // `install` reconfigures process-global cache state.
+    let _install = crate::storage::tests::INSTALL.lock().await;
     let service = Compression::default();
     service
         .install(InstallRequest {
@@ -298,7 +300,15 @@ async fn savings_service_records_persists_and_resets_totals() {
     assert_eq!(stats.by_model["test-model"].events, 1);
     assert!(path.exists());
     Compression::default().reset_savings().await.unwrap();
-    assert_eq!(Compression::default().savings_stats().await.unwrap().total.events, 0);
+    assert_eq!(
+        Compression::default()
+            .savings_stats()
+            .await
+            .unwrap()
+            .total
+            .events,
+        0
+    );
 }
 
 #[derive(Clone)]

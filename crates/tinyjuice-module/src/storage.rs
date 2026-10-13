@@ -9,10 +9,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use tinybus::Connection;
 use tinyjuice::cache::store::{CcrPutResult, CcrStore, RangeUnit};
 use tinyjuice_drivers::BlobCcrStore;
 use tinystoragedrivers_core::{BlobStore, StorageBackend};
-use tinybus::Connection;
 
 /// The host's blob port, connected through `connection`, when it serves one.
 async fn blobs(connection: Connection) -> Option<Arc<dyn BlobStore>> {
@@ -92,4 +92,4 @@ impl<S: CcrStore> CcrStore for OffWorker<S> {
 
 #[cfg(test)]
 #[path = "storage_tests.rs"]
-mod tests;
+pub(crate) mod tests;

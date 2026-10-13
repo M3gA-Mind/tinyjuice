@@ -23,7 +23,7 @@ tinyjuice = { path = "../..", default-features = false, features = ["jq"] }
 tinyjuice-bus = { path = "../tinyjuice-bus" }
 tinybus = { version = "0.1.4", path = "../../vendor/tinybus/crates/tinybus", default-features = false, features = ["macros", "modules"] }
 tinybus-module = { version = "0.1.4", path = "../../vendor/tinybus/crates/tinybus-module" }
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
 serde_json = "1"
 # The CCR store's durable tier is blobs on the host's storage ports, reached
 # over the storage bus. The module has no storage backend or file of its own.

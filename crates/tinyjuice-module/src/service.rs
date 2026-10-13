@@ -23,8 +23,8 @@ const GENERATE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300
 /// The compression service. `connection` is the module's bus connection, used
 /// to reach the host's storage; a service without one keeps the cache in memory.
 #[derive(Clone, Default)]
-struct Compression {
-    connection: Option<Connection>,
+pub(crate) struct Compression {
+    pub(crate) connection: Option<Connection>,
 }
 
 #[tinybus::interface(name = "ai.tinyhumans.tinyjuice.Compression")]
