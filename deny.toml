@@ -43,4 +43,7 @@ unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 
 # Existing TinyTools source dependency; the lockfile pins the exact commit.
-allow-git = ["https://github.com/tinyhumansai/tinytools"]
+allow-git = [
+    "https://github.com/tinyhumansai/tinytools",
+    "https://github.com/tinyhumansai/tinystoragedrivers",
+]
