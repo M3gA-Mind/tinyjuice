@@ -11,6 +11,7 @@
 //! the adapter; and the root `tinyjuice` crate remains host-agnostic and
 //! re-exports the shared values from here rather than defining a second copy.
 
+pub mod handle;
 pub mod names;
 pub mod repl;
 pub mod savings;

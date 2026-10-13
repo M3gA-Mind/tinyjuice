@@ -3,6 +3,16 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+/// Tool-name constants for the recovery and query surface.
+pub mod names {
+    /// The live recovery tool.
+    pub const RETRIEVE: &str = "juice_retrieve";
+    /// Migration alias a replayed transcript may still call.
+    pub const LEGACY_RETRIEVE: &str = "tinyjuice_retrieve";
+    /// The query tools TinyJuice declares, matching [`super::repl_tool_declarations`].
+    pub const REPL_TOOLS: &[&str] = &["juice_find", "juice_extract", "juice_summarize"];
+}
+
 /// A tool's frozen public declaration and its corresponding REPL operation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReplToolDeclaration {
