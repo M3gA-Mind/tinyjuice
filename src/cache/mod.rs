@@ -11,5 +11,5 @@ pub use store::{
     CcrPutResult, CcrStore, DEFAULT_DISK_MAX_BYTES, DEFAULT_MAX_BYTES, DEFAULT_MAX_ENTRIES,
     GcStats, GlobalCcrStore, MemoryCcrStore, RangeUnit, configure, configure_disk_cap,
     disable_disk_tier, enable_disk_tier, gc_disk_dir, gc_disk_tier, offload, offload_checked,
-    offload_checked_with_hash, retrieve, retrieve_range, short_hash, stats,
+    offload_checked_with_hash, retrieve, retrieve_range, set_durable_tier, short_hash, stats,
 };

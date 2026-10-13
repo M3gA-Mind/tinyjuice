@@ -3,7 +3,9 @@ use tinyjuice::types::CompressOptions;
 
 #[tokio::test]
 async fn service_compresses_and_retrieves_a_large_log() {
-    let service = Compression;
+    // `install` reconfigures process-global cache state.
+    let _install = crate::storage::tests::INSTALL.lock().await;
+    let service = Compression::default();
     service
         .install(InstallRequest {
             options: CompressOptions {
@@ -53,7 +55,7 @@ async fn service_compresses_and_retrieves_a_large_log() {
 
 #[tokio::test]
 async fn service_repl_greps_a_stored_output_and_reports_bad_input() {
-    let service = Compression;
+    let service = Compression::default();
     use tinyjuice::cache::CcrStore;
     let token = tinyjuice::cache::GlobalCcrStore
         .put("alpha\nbeta needle\ngamma\n")
@@ -111,11 +113,11 @@ async fn oversized_supplied_inputs_are_rejected_before_execution() {
         scope: None,
     };
     assert_eq!(
-        Compression.query(query).await.unwrap(),
+        Compression::default().query(query).await.unwrap(),
         Err(QueryError::InputTooLarge)
     );
     assert_eq!(
-        Compression
+        Compression::default()
             .extract_html("x".repeat(MAX_HTML_INPUT_BYTES + 1))
             .await
             .unwrap(),
@@ -126,7 +128,7 @@ async fn oversized_supplied_inputs_are_rejected_before_execution() {
 #[tokio::test]
 async fn service_detects_compacts_and_reads_ranges() {
     use tinyjuice::cache::CcrStore;
-    let service = Compression;
+    let service = Compression::default();
     assert_eq!(
         service
             .detect(
@@ -210,7 +212,7 @@ async fn typed_queries_preserve_results_and_structured_errors() {
             content: "alpha\nbeta needle".into(),
         },
     ] {
-        let result = Compression
+        let result = Compression::default()
             .query(QueryRequest {
                 target,
                 op: serde_json::from_value(serde_json::json!({"op":"find","query":"needle"}))
@@ -245,7 +247,7 @@ async fn typed_queries_preserve_results_and_structured_errors() {
         ),
     ] {
         assert_eq!(
-            Compression
+            Compression::default()
                 .query(QueryRequest {
                     target,
                     op: serde_json::from_value(op).unwrap(),
@@ -258,7 +260,7 @@ async fn typed_queries_preserve_results_and_structured_errors() {
             Err(expected)
         );
     }
-    let result = Compression
+    let result = Compression::default()
         .query(QueryRequest {
             target: QueryTarget::Content {
                 content: "alpha".into(),
@@ -278,12 +280,12 @@ async fn typed_queries_preserve_results_and_structured_errors() {
 async fn savings_service_records_persists_and_resets_totals() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("savings.json");
-    Compression
+    Compression::default()
         .configure_savings(path.to_string_lossy().into())
         .await
         .unwrap();
-    Compression.reset_savings().await.unwrap();
-    Compression
+    Compression::default().reset_savings().await.unwrap();
+    Compression::default()
         .record_savings(tinyjuice_bus::savings::RecordSavingsRequest {
             model: "test-model".into(),
             compressor: "test-compressor".into(),
@@ -293,12 +295,20 @@ async fn savings_service_records_persists_and_resets_totals() {
         })
         .await
         .unwrap();
-    let stats = Compression.savings_stats().await.unwrap();
+    let stats = Compression::default().savings_stats().await.unwrap();
     assert_eq!(stats.total.tokens_saved, 60);
     assert_eq!(stats.by_model["test-model"].events, 1);
     assert!(path.exists());
-    Compression.reset_savings().await.unwrap();
-    assert_eq!(Compression.savings_stats().await.unwrap().total.events, 0);
+    Compression::default().reset_savings().await.unwrap();
+    assert_eq!(
+        Compression::default()
+            .savings_stats()
+            .await
+            .unwrap()
+            .total
+            .events,
+        0
+    );
 }
 
 #[derive(Clone)]

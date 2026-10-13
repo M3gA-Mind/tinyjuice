@@ -108,3 +108,8 @@ strip = "debuginfo"
 [[example]]
 name = "repl_tool_schema"
 required-features = ["tinytools"]
+
+# tinystoragedrivers names tinybus by git rev; point that source at the same
+# vendored checkout so the module and the storage proxy share one `Connection`.
+[patch."https://github.com/tinyhumansai/tinybus"]
+tinybus = { path = "vendor/tinybus/crates/tinybus" }

@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use tinybus::{Connection, Result as BusResult};
@@ -21,19 +20,38 @@ use tinyjuice_bus::wire::{
 /// seconds, well past the bus default; this bounds a hung host, not a slow one.
 const GENERATE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
 
-#[derive(Clone)]
-struct Compression;
+/// The compression service. `connection` is the module's bus connection, used
+/// to reach the host's storage; a service without one keeps the cache in memory.
+#[derive(Clone, Default)]
+pub(crate) struct Compression {
+    pub(crate) connection: Option<Connection>,
+}
 
 #[tinybus::interface(name = "ai.tinyhumans.tinyjuice.Compression")]
 impl Compression {
-    async fn install(&self, request: InstallRequest) -> BusResult<()> {
+    pub(crate) async fn install(&self, request: InstallRequest) -> BusResult<()> {
         tinyjuice::tool_integration::install_config(
             request.options,
             request.max_cache_entries,
             request.max_cache_bytes,
             request.ccr_ttl_secs,
-            request.disk_tier_root.map(PathBuf::from),
+            // The module writes no files: the durable tier is the host's blob
+            // port, never a directory the host names.
+            None,
         );
+        // `disk_tier_root` is the host's "keep originals past memory" switch.
+        // Off clears the durable tier; on moves it onto the host's storage.
+        let durable = match (request.disk_tier_root, self.connection.clone()) {
+            (Some(_), Some(connection)) => {
+                crate::storage::durable_tier(
+                    connection,
+                    request.ccr_ttl_secs.map(std::time::Duration::from_secs),
+                )
+                .await
+            }
+            _ => None,
+        };
+        tinyjuice::cache::set_durable_tier(durable);
         Ok(())
     }
 
@@ -279,7 +297,12 @@ async fn setup(connection: Connection) -> BusResult<()> {
     })));
 
     connection
-        .serve_at(OBJECT_PATH.try_into()?, Compression)
+        .serve_at(
+            OBJECT_PATH.try_into()?,
+            Compression {
+                connection: Some(connection.clone()),
+            },
+        )
         .await?;
     connection.request_name(BUS_NAME).await?;
     Ok(())

@@ -418,3 +418,63 @@ fn isolated_store_recovers_its_contents_after_lock_poisoning() {
     let next = store.put("second fixture");
     assert!(next.retained());
 }
+
+/// The durable tier is process-global; tests that install one take turns.
+static DURABLE_TIER: Mutex<()> = Mutex::new(());
+
+#[test]
+fn durable_tier_mirrors_offloads_and_serves_memory_misses() {
+    let _turn = DURABLE_TIER.lock().unwrap_or_else(|p| p.into_inner());
+    let durable = Arc::new(MemoryCcrStore::default());
+    set_durable_tier(Some(durable.clone()));
+
+    let mirrored = "durable tier mirrored offload fixture";
+    let (hash, retained) = offload_checked(mirrored);
+    assert!(retained);
+    assert_eq!(durable.get(&hash).as_deref(), Some(mirrored));
+
+    // An original only the durable tier holds (evicted or from before a
+    // restart) is still retrievable, whole and by range.
+    let only_durable = durable.put("durable only\nsecond line");
+    assert_eq!(
+        retrieve(only_durable.token()).as_deref(),
+        Some("durable only\nsecond line")
+    );
+    assert_eq!(
+        retrieve_range(only_durable.token(), 1, 2, RangeUnit::Lines).as_deref(),
+        Some("second line")
+    );
+
+    set_durable_tier(None);
+    assert_eq!(retrieve(only_durable.token()), None, "cleared tier is gone");
+}
+
+/// Retains every original, but under a token of its own rather than the
+/// content hash callers advertise.
+struct OtherToken;
+
+impl CcrStore for OtherToken {
+    fn put(&self, _content: &str) -> CcrPutResult {
+        CcrPutResult::new(short_hash("another token"), true)
+    }
+    fn get(&self, _token: &str) -> Option<String> {
+        None
+    }
+    fn get_range(&self, _: &str, _: usize, _: usize, _: RangeUnit) -> Option<String> {
+        None
+    }
+}
+
+#[test]
+fn durable_retention_requires_the_recovery_token() {
+    let _turn = DURABLE_TIER.lock().unwrap_or_else(|p| p.into_inner());
+    set_durable_tier(Some(Arc::new(OtherToken)));
+    // Larger than the memory cap, so only the durable tier could retain it.
+    let oversized = "x".repeat(DEFAULT_MAX_BYTES + 1);
+    let (_hash, retained) = offload_checked(&oversized);
+    set_durable_tier(None);
+    assert!(
+        !retained,
+        "a store keyed by another token cannot serve the hash"
+    );
+}
