@@ -19,7 +19,7 @@ use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, OnceLock, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant, SystemTime};
 
 /// Default max originals retained (entry-count cap).
@@ -246,6 +246,22 @@ pub fn disable_disk_tier() {
     *disk_root().write().unwrap_or_else(|p| p.into_inner()) = None;
 }
 
+/// The host-provided durable tier, tried after memory. See [`set_durable_tier`].
+fn durable_tier() -> &'static RwLock<Option<Arc<dyn CcrStore>>> {
+    static TIER: OnceLock<RwLock<Option<Arc<dyn CcrStore>>>> = OnceLock::new();
+    TIER.get_or_init(|| RwLock::new(None))
+}
+
+/// Install (or clear, with `None`) a durable tier behind the in-memory cache.
+///
+/// The store owns persistence and expiry, so this crate stays free of any
+/// storage dependency: a host module hands it a [`CcrStore`] built on whatever
+/// backend it was given. Offloads mirror into it and a memory miss falls
+/// through to it. It is independent of the file-backed [`enable_disk_tier`].
+pub fn set_durable_tier(store: Option<Arc<dyn CcrStore>>) {
+    *durable_tier().write().unwrap_or_else(|p| p.into_inner()) = store;
+}
+
 struct Entry {
     content: String,
     created: Instant,
@@ -386,7 +402,13 @@ pub fn offload_checked_with_hash(hash: &str, content: &str) -> bool {
             }
         }
     }
-    mem_retained || disk_retained
+    // Mirror to the host-provided durable tier (best-effort, like the disk tier).
+    let durable = durable_tier()
+        .read()
+        .unwrap_or_else(|p| p.into_inner())
+        .clone();
+    let durable_retained = durable.is_some_and(|store| store.put(content).retained());
+    mem_retained || disk_retained || durable_retained
 }
 
 /// Result of a disk-tier garbage-collection sweep.
@@ -521,6 +543,14 @@ pub fn retrieve(hash: &str) -> Option<String> {
                 inner.total_bytes = inner.total_bytes.saturating_sub(e.content.len());
             }
         }
+    }
+    // Host-provided durable tier: it owns its own expiry.
+    let durable = durable_tier()
+        .read()
+        .unwrap_or_else(|p| p.into_inner())
+        .clone();
+    if let Some(found) = durable.and_then(|store| store.get(hash)) {
+        return Some(found);
     }
     // Disk fallback.
     let root = disk_root()
