@@ -111,11 +111,11 @@ async fn oversized_supplied_inputs_are_rejected_before_execution() {
         scope: None,
     };
     assert_eq!(
-        Compression.query(query).await.unwrap(),
+        Compression::default().query(query).await.unwrap(),
         Err(QueryError::InputTooLarge)
     );
     assert_eq!(
-        Compression
+        Compression::default()
             .extract_html("x".repeat(MAX_HTML_INPUT_BYTES + 1))
             .await
             .unwrap(),
@@ -210,7 +210,7 @@ async fn typed_queries_preserve_results_and_structured_errors() {
             content: "alpha\nbeta needle".into(),
         },
     ] {
-        let result = Compression
+        let result = Compression::default()
             .query(QueryRequest {
                 target,
                 op: serde_json::from_value(serde_json::json!({"op":"find","query":"needle"}))
@@ -245,7 +245,7 @@ async fn typed_queries_preserve_results_and_structured_errors() {
         ),
     ] {
         assert_eq!(
-            Compression
+            Compression::default()
                 .query(QueryRequest {
                     target,
                     op: serde_json::from_value(op).unwrap(),
@@ -258,7 +258,7 @@ async fn typed_queries_preserve_results_and_structured_errors() {
             Err(expected)
         );
     }
-    let result = Compression
+    let result = Compression::default()
         .query(QueryRequest {
             target: QueryTarget::Content {
                 content: "alpha".into(),
@@ -278,12 +278,12 @@ async fn typed_queries_preserve_results_and_structured_errors() {
 async fn savings_service_records_persists_and_resets_totals() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("savings.json");
-    Compression
+    Compression::default()
         .configure_savings(path.to_string_lossy().into())
         .await
         .unwrap();
     Compression.reset_savings().await.unwrap();
-    Compression
+    Compression::default()
         .record_savings(tinyjuice_bus::savings::RecordSavingsRequest {
             model: "test-model".into(),
             compressor: "test-compressor".into(),

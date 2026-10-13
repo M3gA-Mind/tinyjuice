@@ -22,8 +22,9 @@ pub struct InstallRequest {
     /// How long a retrievable original stays retrievable. `None` keeps the
     /// module's own default.
     pub ccr_ttl_secs: Option<u64>,
-    /// Where the disk tier writes, when the host wants one. `None` keeps the
-    /// cache in memory only.
+    /// Whether originals outlive memory. `Some` puts them on the host's storage
+    /// bus (the path itself is no longer written to); `None` keeps the cache in
+    /// memory only.
     pub disk_tier_root: Option<String>,
 }
 
