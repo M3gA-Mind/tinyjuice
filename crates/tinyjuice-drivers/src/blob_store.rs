@@ -4,9 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tinyjuice::cache::store::{CcrPutResult, CcrStore, RangeUnit, range_from_original, short_hash};
-use tinystoragedrivers_core::{
-    BlobStore, Blocking, Capability, StorageError,
-};
+use tinystoragedrivers_core::{BlobStore, Blocking, Capability, StorageError};
 
 /// The key prefix that holds one blob per original, `tinyjuice_ccr/<token>`.
 pub const CCR_PREFIX: &str = "tinyjuice_ccr";
@@ -130,7 +128,6 @@ impl CcrStore for BlobCcrStore {
         range_from_original(&original, start, end, unit)
     }
 }
-
 
 #[cfg(test)]
 #[path = "blob_store_tests.rs"]

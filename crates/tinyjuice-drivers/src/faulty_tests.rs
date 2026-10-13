@@ -6,9 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use tinystoragedrivers_core::{
-    Blob, BlobMeta, BlobStore, Capabilities, Result, StorageError,
-};
+use tinystoragedrivers_core::{Blob, BlobMeta, BlobStore, Capabilities, Result, StorageError};
 
 /// Wraps a real handle; `fail` makes every call error, `ttl` toggles whether
 /// it claims `BlobTtl`.

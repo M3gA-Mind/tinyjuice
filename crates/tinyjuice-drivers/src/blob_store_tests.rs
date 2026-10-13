@@ -1,6 +1,6 @@
 use super::*;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use tinystoragedrivers_core::{MemoryStorage, Scope, StorageBackend};
+use tinystoragedrivers_core::{Capability, MemoryStorage, Scope, StorageBackend};
 
 use crate::faulty::Faulty;
 
@@ -98,7 +98,10 @@ fn a_ttl_needs_a_handle_that_can_expire_blobs() {
     let storage = MemoryStorage::new();
     let (blobs, _) = faulty(&storage, false);
     let err = BlobCcrStore::new(Arc::clone(&blobs), Some(Duration::from_secs(5))).unwrap_err();
-    assert_eq!(err.kind(), tinystoragedrivers_core::ErrorKind::Unsupported);
+    assert_eq!(
+        err.kind(),
+        tinystoragedrivers_core::ErrorKind::Unsupported(Capability::BlobTtl)
+    );
     assert!(BlobCcrStore::new(blobs, None).is_ok());
 }
 
@@ -106,7 +109,13 @@ fn a_ttl_needs_a_handle_that_can_expire_blobs() {
 fn malformed_tokens_never_reach_the_backend() {
     let storage = MemoryStorage::new();
     let store = BlobCcrStore::new(handle(&storage), None).unwrap();
-    for token in ["", "../../state/config.toml", "tinyjuice_ccr/abc", "zz", &"g".repeat(32)] {
+    for token in [
+        "",
+        "../../state/config.toml",
+        "tinyjuice_ccr/abc",
+        "zz",
+        &"g".repeat(32),
+    ] {
         assert_eq!(store.get(token), None, "{token}");
         assert!(!store.delete(token), "{token}");
     }
@@ -118,9 +127,18 @@ fn ranges_clamp_like_the_in_memory_store() {
     let store = BlobCcrStore::new(handle(&storage), None).unwrap();
     let put = store.put("one\ntwo\nthree\nfour");
     let t = put.token();
-    assert_eq!(store.get_range(t, 1, 3, RangeUnit::Lines).as_deref(), Some("two\nthree"));
-    assert_eq!(store.get_range(t, 0, 3, RangeUnit::Bytes).as_deref(), Some("one"));
-    assert_eq!(store.get_range(t, 3, 3, RangeUnit::Bytes).as_deref(), Some(""));
+    assert_eq!(
+        store.get_range(t, 1, 3, RangeUnit::Lines).as_deref(),
+        Some("two\nthree")
+    );
+    assert_eq!(
+        store.get_range(t, 0, 3, RangeUnit::Bytes).as_deref(),
+        Some("one")
+    );
+    assert_eq!(
+        store.get_range(t, 3, 3, RangeUnit::Bytes).as_deref(),
+        Some("")
+    );
     assert_eq!(store.get_range("nothex", 0, 3, RangeUnit::Bytes), None);
 }
 
@@ -131,7 +149,12 @@ fn non_ascii_bytes_round_trip_and_ranges_stay_on_char_boundaries() {
     let put = store.put("héllo");
     assert_eq!(store.get(put.token()).as_deref(), Some("héllo"));
     // byte 2 is inside the two-byte 'é'
-    assert_eq!(store.get_range(put.token(), 0, 2, RangeUnit::Bytes).as_deref(), Some("h"));
+    assert_eq!(
+        store
+            .get_range(put.token(), 0, 2, RangeUnit::Bytes)
+            .as_deref(),
+        Some("h")
+    );
 }
 
 #[test]
@@ -156,7 +179,10 @@ fn backend_failures_are_not_retained_and_read_as_absent() {
     assert_eq!(store.get(ok.token()), None);
     assert!(!store.delete(ok.token()));
     fail.store(false, Ordering::SeqCst);
-    assert_eq!(store.get(ok.token()).as_deref(), Some("stored while healthy"));
+    assert_eq!(
+        store.get(ok.token()).as_deref(),
+        Some("stored while healthy")
+    );
 }
 
 #[test]
