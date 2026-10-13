@@ -564,7 +564,9 @@ pub fn retrieve_range(hash: &str, start: usize, end: usize, unit: RangeUnit) -> 
     range_from_original(&original, start, end, unit)
 }
 
-pub(crate) fn range_from_original(
+/// Slice `original` as [`retrieve_range`] does. Public so a [`CcrStore`] backed
+/// by another tier can share the clamping rules.
+pub fn range_from_original(
     original: &str,
     start: usize,
     end: usize,

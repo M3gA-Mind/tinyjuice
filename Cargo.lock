@@ -1329,6 +1329,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tinyjuice-drivers"
+version = "0.9.0"
+dependencies = [
+ "async-trait",
+ "log",
+ "tinyjuice",
+ "tinystoragedrivers-core",
+ "tokio",
+]
+
+[[package]]
 name = "tinyjuice-module"
 version = "0.9.1"
 dependencies = [
@@ -1338,6 +1349,18 @@ dependencies = [
  "tinybus-module",
  "tinyjuice",
  "tinyjuice-bus",
+ "tokio",
+]
+
+[[package]]
+name = "tinystoragedrivers-core"
+version = "0.7.0"
+source = "git+https://github.com/tinyhumansai/tinystoragedrivers?tag=v0.7.0#6d1a1029de402f5937113fcc56e4023e0dc61c94"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "thiserror",
  "tokio",
 ]
 
