@@ -419,8 +419,12 @@ fn isolated_store_recovers_its_contents_after_lock_poisoning() {
     assert!(next.retained());
 }
 
+/// The durable tier is process-global; tests that install one take turns.
+static DURABLE_TIER: Mutex<()> = Mutex::new(());
+
 #[test]
 fn durable_tier_mirrors_offloads_and_serves_memory_misses() {
+    let _turn = DURABLE_TIER.lock().unwrap_or_else(|p| p.into_inner());
     let durable = Arc::new(MemoryCcrStore::default());
     set_durable_tier(Some(durable.clone()));
 
@@ -443,4 +447,31 @@ fn durable_tier_mirrors_offloads_and_serves_memory_misses() {
 
     set_durable_tier(None);
     assert_eq!(retrieve(only_durable.token()), None, "cleared tier is gone");
+}
+
+/// Retains every original, but under a token of its own rather than the
+/// content hash callers advertise.
+struct OtherToken;
+
+impl CcrStore for OtherToken {
+    fn put(&self, _content: &str) -> CcrPutResult {
+        CcrPutResult::new("0123456789abcdef01234567".to_string(), true)
+    }
+    fn get(&self, _token: &str) -> Option<String> {
+        None
+    }
+    fn get_range(&self, _: &str, _: usize, _: usize, _: RangeUnit) -> Option<String> {
+        None
+    }
+}
+
+#[test]
+fn durable_retention_requires_the_recovery_token() {
+    let _turn = DURABLE_TIER.lock().unwrap_or_else(|p| p.into_inner());
+    set_durable_tier(Some(Arc::new(OtherToken)));
+    // Larger than the memory cap, so only the durable tier could retain it.
+    let oversized = "x".repeat(DEFAULT_MAX_BYTES + 1);
+    let (_hash, retained) = offload_checked(&oversized);
+    set_durable_tier(None);
+    assert!(!retained, "a store keyed by another token cannot serve the hash");
 }
