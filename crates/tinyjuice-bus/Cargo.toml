@@ -1,7 +1,7 @@
 [package]
 rust-version = "1.88"
 name = "tinyjuice-bus"
-version = "0.9.0"
+version = "0.9.1"
 edition = "2024"
 license = "GPL-3.0-only"
 description = "The TinyBus wire contract for TinyJuice: member names, payload types, and the contract version."
