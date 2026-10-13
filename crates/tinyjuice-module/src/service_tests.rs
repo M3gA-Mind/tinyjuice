@@ -282,7 +282,7 @@ async fn savings_service_records_persists_and_resets_totals() {
         .configure_savings(path.to_string_lossy().into())
         .await
         .unwrap();
-    Compression.reset_savings().await.unwrap();
+    Compression::default().reset_savings().await.unwrap();
     Compression::default()
         .record_savings(tinyjuice_bus::savings::RecordSavingsRequest {
             model: "test-model".into(),
@@ -293,12 +293,12 @@ async fn savings_service_records_persists_and_resets_totals() {
         })
         .await
         .unwrap();
-    let stats = Compression.savings_stats().await.unwrap();
+    let stats = Compression::default().savings_stats().await.unwrap();
     assert_eq!(stats.total.tokens_saved, 60);
     assert_eq!(stats.by_model["test-model"].events, 1);
     assert!(path.exists());
-    Compression.reset_savings().await.unwrap();
-    assert_eq!(Compression.savings_stats().await.unwrap().total.events, 0);
+    Compression::default().reset_savings().await.unwrap();
+    assert_eq!(Compression::default().savings_stats().await.unwrap().total.events, 0);
 }
 
 #[derive(Clone)]
