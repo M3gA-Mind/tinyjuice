@@ -212,5 +212,8 @@ async fn store_calls_run_in_place_on_a_current_thread_runtime() {
     let store = OffWorker(Fixed);
     assert!(store.put("x").retained());
     assert_eq!(store.get("t").as_deref(), Some("fixed"));
-    assert_eq!(store.get_range("t", 0, 1, RangeUnit::Lines).as_deref(), Some("range"));
+    assert_eq!(
+        store.get_range("t", 0, 1, RangeUnit::Lines).as_deref(),
+        Some("range")
+    );
 }

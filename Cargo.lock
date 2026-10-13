@@ -1492,6 +1492,7 @@ dependencies = [
 name = "tinyjuice-module"
 version = "0.9.2"
 dependencies = [
+ "async-trait",
  "log",
  "serde_json",
  "tempfile",
