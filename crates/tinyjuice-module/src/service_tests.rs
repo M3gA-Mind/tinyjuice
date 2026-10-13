@@ -3,7 +3,7 @@ use tinyjuice::types::CompressOptions;
 
 #[tokio::test]
 async fn service_compresses_and_retrieves_a_large_log() {
-    let service = Compression;
+    let service = Compression::default();
     service
         .install(InstallRequest {
             options: CompressOptions {
@@ -53,7 +53,7 @@ async fn service_compresses_and_retrieves_a_large_log() {
 
 #[tokio::test]
 async fn service_repl_greps_a_stored_output_and_reports_bad_input() {
-    let service = Compression;
+    let service = Compression::default();
     use tinyjuice::cache::CcrStore;
     let token = tinyjuice::cache::GlobalCcrStore
         .put("alpha\nbeta needle\ngamma\n")
@@ -126,7 +126,7 @@ async fn oversized_supplied_inputs_are_rejected_before_execution() {
 #[tokio::test]
 async fn service_detects_compacts_and_reads_ranges() {
     use tinyjuice::cache::CcrStore;
-    let service = Compression;
+    let service = Compression::default();
     assert_eq!(
         service
             .detect(

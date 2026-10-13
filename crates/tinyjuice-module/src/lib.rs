@@ -5,6 +5,7 @@
 //! engine and its dependency tree out of an embedding host.
 
 mod service;
+mod storage;
 
 /// Entry points for hosts that link `TinyJuice` into their own executable.
 #[cfg(feature = "static-link")]
