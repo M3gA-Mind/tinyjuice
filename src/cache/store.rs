@@ -407,7 +407,16 @@ pub fn offload_checked_with_hash(hash: &str, content: &str) -> bool {
         .read()
         .unwrap_or_else(|p| p.into_inner())
         .clone();
-    let durable_retained = durable.is_some_and(|store| store.put(content).retained());
+    // Retention counts only under the recovery token (`hash`) callers advertise:
+    // a store that keys the original differently cannot serve `retrieve(hash)`.
+    let durable_retained = durable.is_some_and(|store| {
+        let put = store.put(content);
+        let same_token = put.token() == hash;
+        if put.retained() && !same_token {
+            log::debug!("[tinyjuice][ccr] durable tier keyed {hash} under another token; not counted");
+        }
+        put.retained() && same_token
+    });
     mem_retained || disk_retained || durable_retained
 }
 
