@@ -29,7 +29,7 @@ pub(crate) struct Compression {
 
 #[tinybus::interface(name = "ai.tinyhumans.tinyjuice.Compression")]
 impl Compression {
-    async fn install(&self, request: InstallRequest) -> BusResult<()> {
+    pub(crate) async fn install(&self, request: InstallRequest) -> BusResult<()> {
         tinyjuice::tool_integration::install_config(
             request.options,
             request.max_cache_entries,
