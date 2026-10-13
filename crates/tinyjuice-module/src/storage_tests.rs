@@ -176,6 +176,13 @@ impl BlobStore for NoExpiry {
     async fn delete(&self, key: &str) -> tinystoragedrivers_core::Result<bool> {
         self.0.delete(key).await
     }
+
+    async fn list(
+        &self,
+        prefix: &str,
+    ) -> tinystoragedrivers_core::Result<Vec<tinystoragedrivers_core::BlobMeta>> {
+        self.0.list(prefix).await
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
