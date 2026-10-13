@@ -455,7 +455,7 @@ struct OtherToken;
 
 impl CcrStore for OtherToken {
     fn put(&self, _content: &str) -> CcrPutResult {
-        CcrPutResult::new("0123456789abcdef01234567".to_string(), true)
+        CcrPutResult::new(short_hash("another token"), true)
     }
     fn get(&self, _token: &str) -> Option<String> {
         None
@@ -473,5 +473,8 @@ fn durable_retention_requires_the_recovery_token() {
     let oversized = "x".repeat(DEFAULT_MAX_BYTES + 1);
     let (_hash, retained) = offload_checked(&oversized);
     set_durable_tier(None);
-    assert!(!retained, "a store keyed by another token cannot serve the hash");
+    assert!(
+        !retained,
+        "a store keyed by another token cannot serve the hash"
+    );
 }

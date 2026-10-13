@@ -413,7 +413,9 @@ pub fn offload_checked_with_hash(hash: &str, content: &str) -> bool {
         let put = store.put(content);
         let same_token = put.token() == hash;
         if put.retained() && !same_token {
-            log::debug!("[tinyjuice][ccr] durable tier keyed {hash} under another token; not counted");
+            log::debug!(
+                "[tinyjuice][ccr] durable tier keyed {hash} under another token; not counted"
+            );
         }
         put.retained() && same_token
     });
