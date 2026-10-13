@@ -9,7 +9,10 @@ fn parse_only_accepts_alphanumeric_tokens() {
     assert_eq!(parse(""), None);
     assert_eq!(parse("⟦tj:⟧"), None);
     assert_eq!(parse("call_abc"), None);
-    assert_eq!(parse(&"f".repeat(MAX_HANDLE_LEN)), Some("f".repeat(MAX_HANDLE_LEN).as_str()));
+    assert_eq!(
+        parse(&"f".repeat(MAX_HANDLE_LEN)),
+        Some("f".repeat(MAX_HANDLE_LEN).as_str())
+    );
     assert_eq!(parse(&"f".repeat(MAX_HANDLE_LEN + 1)), None);
 }
 
@@ -17,7 +20,10 @@ fn parse_only_accepts_alphanumeric_tokens() {
 fn classify_separates_handles_paths_and_junk() {
     let hex = "0123456789abcdef0123456789abcdef";
     assert_eq!(classify(hex), HandleArg::Handle(hex.into()));
-    assert_eq!(classify(&format!(" ⟦tj:{hex}⟧ ")), HandleArg::Handle(hex.into()));
+    assert_eq!(
+        classify(&format!(" ⟦tj:{hex}⟧ ")),
+        HandleArg::Handle(hex.into())
+    );
     assert_eq!(
         classify("artifacts/tool-results/s/shell/call_1.txt"),
         HandleArg::Path("artifacts/tool-results/s/shell/call_1.txt".into())

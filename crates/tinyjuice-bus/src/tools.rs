@@ -3,15 +3,12 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-/// Tool-name constants for the recovery and query surface.
-pub mod names {
-    /// The live recovery tool.
-    pub const RETRIEVE: &str = "juice_retrieve";
-    /// Migration alias a replayed transcript may still call.
-    pub const LEGACY_RETRIEVE: &str = "tinyjuice_retrieve";
-    /// The query tools TinyJuice declares, matching [`super::repl_tool_declarations`].
-    pub const REPL_TOOLS: &[&str] = &["juice_find", "juice_extract", "juice_summarize"];
-}
+/// The live recovery tool.
+pub const RETRIEVE: &str = "juice_retrieve";
+/// Migration alias a replayed transcript may still call.
+pub const LEGACY_RETRIEVE: &str = "tinyjuice_retrieve";
+/// The query tools TinyJuice declares, matching [`repl_tool_declarations`].
+pub const REPL_TOOLS: &[&str] = &["juice_find", "juice_extract", "juice_summarize"];
 
 /// A tool's frozen public declaration and its corresponding REPL operation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -45,7 +42,7 @@ pub fn repl_tool_declarations() -> Vec<ReplToolDeclaration> {
     };
     vec![
         t(
-            "juice_find",
+            REPL_TOOLS[0],
             "find",
             "Read or search part of a stored tool output by its handle, without loading all of it. mode `sed` reads exact lines (query `-n 120,200p`); `grep`/`regex` search (with `context` lines; regex returns capture groups); `text` substring; `rank` BM25; `awk` (`-F, '$2>5{print $1}'`); `jq` for JSON. Prefer this to juice_retrieve when you need only part of an output.",
             json!({
@@ -60,7 +57,7 @@ pub fn repl_tool_declarations() -> Vec<ReplToolDeclaration> {
             &["query"],
         ),
         t(
-            "juice_extract",
+            REPL_TOOLS[1],
             "extract",
             "HTML or Markdown outputs only: list their links or headings.",
             json!({
@@ -71,7 +68,7 @@ pub fn repl_tool_declarations() -> Vec<ReplToolDeclaration> {
             &["what"],
         ),
         t(
-            "juice_summarize",
+            REPL_TOOLS[2],
             "summarize",
             "Model-free overview of a stored output: size, outline or JSON shape, then head and tail; with `hint`, the parts most relevant to it. Use it to find where to read with juice_find.",
             json!({
@@ -118,3 +115,7 @@ pub fn retrieve_tool_parameters() -> Value {
         "required": ["hash"]
     })
 }
+
+#[cfg(test)]
+#[path = "tools_tests.rs"]
+mod tests;
