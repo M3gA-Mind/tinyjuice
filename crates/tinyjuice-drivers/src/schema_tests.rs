@@ -1,4 +1,5 @@
 use super::*;
+use crate::{BlobCcrStore, CCR_PREFIX};
 use tinystoragedrivers_core::schema::{Item, MigrateOptions, Registry, ScopeClass};
 use tinystoragedrivers_core::{MemoryStorage, Scope, StorageBackend};
 
@@ -7,7 +8,7 @@ const LEGACY: &str = "tinyjuice_ccr/";
 #[test]
 fn the_schema_declares_the_ccr_blobs_at_module_scope() {
     let schema = storage_schema();
-    let items: Vec<_> = schema.items().iter().collect();
+    let items: Vec<_> = schema.items.iter().collect();
     assert_eq!(items.len(), 1, "CCR blobs are the only thing juice stores");
     match items[0] {
         Item::Blobs { prefix, scope } => {
