@@ -8,7 +8,8 @@
 //! Before schema v2 the same blobs lived under `tinyjuice_ccr/<token>`. One
 //! blob step moves them; the bytes and content type are untouched.
 
-use tinystoragedrivers_core::schema::{Owner, Schema, ScopeClass, Step};
+use tinystoragedrivers_core::Result;
+use tinystoragedrivers_core::schema::{BlobOutput, Owner, Schema, ScopeClass, Step};
 
 use crate::blob_store::CCR_PREFIX;
 
@@ -34,20 +35,21 @@ pub fn storage_schema() -> Schema {
 
 /// v1 to v2: `tinyjuice_ccr/<token>` becomes `juice/ccr/<token>`.
 fn ccr_prefix_step() -> Step {
-    Step::blobs(
-        "ccr_prefix_v2",
-        "juice/ccr/",
-        1,
-        2,
-        |key, content_type, bytes| {
-            // The runner lists by the legacy prefix, so every key carries it.
-            let Some(rest) = key.strip_prefix(LEGACY_PREFIX) else {
-                return Ok(None);
-            };
-            Ok(Some((format!("{CCR_PREFIX}/{rest}"), content_type, bytes)))
-        },
-    )
-    .source_prefix(LEGACY_PREFIX)
+    Step::blobs("ccr_prefix_v2", "juice/ccr/", 1, 2, move_ccr_blob).source_prefix(LEGACY_PREFIX)
+}
+
+/// One blob of the v1 prefix, re-keyed. Bytes and content type are untouched.
+fn move_ccr_blob(
+    key: String,
+    content_type: Option<String>,
+    bytes: Vec<u8>,
+) -> Result<Option<BlobOutput>> {
+    // The runner lists by the legacy prefix, so every key carries it; a key
+    // that somehow does not has nothing to move.
+    let Some(rest) = key.strip_prefix(LEGACY_PREFIX) else {
+        return Ok(None);
+    };
+    Ok(Some((format!("{CCR_PREFIX}/{rest}"), content_type, bytes)))
 }
 
 #[cfg(test)]

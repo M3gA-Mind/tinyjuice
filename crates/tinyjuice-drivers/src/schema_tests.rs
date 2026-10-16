@@ -102,10 +102,25 @@ async fn a_migrated_original_is_readable_through_the_store() {
         .unwrap();
 
     let blobs = std::sync::Arc::clone(storage.blobs());
-    let got = tokio::task::spawn_blocking(move || {
-        BlobCcrStore::new(blobs, None).unwrap().get(&token)
-    })
-    .await
-    .unwrap();
+    let got =
+        tokio::task::spawn_blocking(move || BlobCcrStore::new(blobs, None).unwrap().get(&token))
+            .await
+            .unwrap();
     assert_eq!(got.as_deref(), Some("legacy original"));
+}
+
+#[test]
+fn a_key_outside_the_legacy_prefix_has_nothing_to_move() {
+    let moved = move_ccr_blob("elsewhere/x".into(), None, b"x".to_vec()).unwrap();
+    assert!(moved.is_none());
+    let (key, content_type, bytes) = move_ccr_blob(
+        "tinyjuice_ccr/ab".into(),
+        Some("text/plain".into()),
+        b"x".to_vec(),
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(key, "juice/ccr/ab");
+    assert_eq!(content_type.as_deref(), Some("text/plain"));
+    assert_eq!(bytes, b"x");
 }
