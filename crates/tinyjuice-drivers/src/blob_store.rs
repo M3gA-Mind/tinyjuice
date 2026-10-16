@@ -6,8 +6,12 @@ use std::time::Duration;
 use tinyjuice::cache::store::{CcrPutResult, CcrStore, RangeUnit, range_from_original, short_hash};
 use tinystoragedrivers_core::{BlobStore, Blocking, Capability, StorageError};
 
-/// The key prefix that holds one blob per original, `tinyjuice_ccr/<token>`.
-pub const CCR_PREFIX: &str = "tinyjuice_ccr";
+/// The key prefix that holds one blob per original, `juice/ccr/<token>`.
+pub const CCR_PREFIX: &str = "juice/ccr";
+
+/// Where schema v1 kept them, `tinyjuice_ccr/<token>`. Only the migration reads
+/// it.
+pub(crate) const LEGACY_CCR_PREFIX: &str = "tinyjuice_ccr";
 
 const CONTENT_TYPE: &str = "text/plain; charset=utf-8";
 
