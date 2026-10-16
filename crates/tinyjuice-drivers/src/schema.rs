@@ -10,7 +10,10 @@
 
 use tinystoragedrivers_core::schema::{Owner, Schema, ScopeClass, Step};
 
-use crate::blob_store::{CCR_PREFIX, LEGACY_CCR_PREFIX};
+use crate::blob_store::CCR_PREFIX;
+
+/// Where schema v1 kept the originals, `tinyjuice_ccr/<token>`.
+const LEGACY_PREFIX: &str = "tinyjuice_ccr/";
 
 /// The schema owner, and the first path segment of every blob key.
 const OWNER: &str = "juice";
@@ -38,17 +41,14 @@ fn ccr_prefix_step() -> Step {
         2,
         |key, content_type, bytes| {
             // The runner lists by the legacy prefix, so every key carries it.
-            let Some(rest) = key.strip_prefix(LEGACY_PREFIX_WITH_SLASH) else {
+            let Some(rest) = key.strip_prefix(LEGACY_PREFIX) else {
                 return Ok(None);
             };
             Ok(Some((format!("{CCR_PREFIX}/{rest}"), content_type, bytes)))
         },
     )
-    .source_prefix(LEGACY_PREFIX_WITH_SLASH)
+    .source_prefix(LEGACY_PREFIX)
 }
-
-/// The v1 key prefix, with the separator the keys carry.
-const LEGACY_PREFIX_WITH_SLASH: &str = "tinyjuice_ccr/";
 
 #[cfg(test)]
 #[path = "schema_tests.rs"]

@@ -9,10 +9,6 @@ use tinystoragedrivers_core::{BlobStore, Blocking, Capability, StorageError};
 /// The key prefix that holds one blob per original, `juice/ccr/<token>`.
 pub const CCR_PREFIX: &str = "juice/ccr";
 
-/// Where schema v1 kept them, `tinyjuice_ccr/<token>`. Only the migration reads
-/// it.
-pub(crate) const LEGACY_CCR_PREFIX: &str = "tinyjuice_ccr";
-
 const CONTENT_TYPE: &str = "text/plain; charset=utf-8";
 
 /// CCR originals as expiring blobs, keyed by their content token.
