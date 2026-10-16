@@ -113,6 +113,7 @@ fn malformed_tokens_never_reach_the_backend() {
         "",
         "../../state/config.toml",
         "tinyjuice_ccr/abc",
+        "juice/ccr/abc",
         "zz",
         &"g".repeat(32),
     ] {
