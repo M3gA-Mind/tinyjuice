@@ -226,7 +226,10 @@ async fn a_migrated_original_is_readable_through_the_store() {
         .unwrap();
     tinystoragedrivers_core::schema::Registry::compose([crate::storage_schema()])
         .unwrap()
-        .migrate(&storage, &tinystoragedrivers_core::schema::MigrateOptions::new())
+        .migrate(
+            &storage,
+            &tinystoragedrivers_core::schema::MigrateOptions::new(),
+        )
         .await
         .unwrap();
 
@@ -237,4 +240,3 @@ async fn a_migrated_original_is_readable_through_the_store() {
             .unwrap();
     assert_eq!(got.as_deref(), Some("legacy original"));
 }
-

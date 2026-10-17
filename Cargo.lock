@@ -1555,6 +1555,8 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tinystoragedrivers-core",
+ "tokio",
 ]
 
 [[package]]
@@ -1564,6 +1566,7 @@ dependencies = [
  "async-trait",
  "log",
  "tinyjuice",
+ "tinyjuice-bus",
  "tinystoragedrivers-core",
  "tokio",
 ]
