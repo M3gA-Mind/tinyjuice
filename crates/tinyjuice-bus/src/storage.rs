@@ -6,12 +6,14 @@
 //! spelling the prefix out a second time.
 //!
 //! Before schema v2 the same blobs lived under `tinyjuice_ccr/<token>`. One
-//! blob step moves them; the bytes and content type are untouched.
+//! blob step moves them; the bytes and content type are untouched. The steps
+//! are pure: no I/O happens until the host's registry runs them.
 
 use tinystoragedrivers_core::Result;
 use tinystoragedrivers_core::schema::{BlobOutput, Owner, Schema, ScopeClass, Step};
 
-use crate::blob_store::CCR_PREFIX;
+/// Where the CCR store keeps originals, `juice/ccr/<token>` (no trailing slash).
+pub const CCR_PREFIX: &str = "juice/ccr";
 
 /// Where schema v1 kept the originals, `tinyjuice_ccr/<token>`.
 const LEGACY_PREFIX: &str = "tinyjuice_ccr/";
@@ -53,5 +55,5 @@ fn move_ccr_blob(
 }
 
 #[cfg(test)]
-#[path = "schema_tests.rs"]
+#[path = "storage_tests.rs"]
 mod tests;
