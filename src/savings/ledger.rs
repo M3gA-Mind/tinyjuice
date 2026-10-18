@@ -36,6 +36,23 @@ impl SavingsLedger {
             .aggregate = aggregate;
     }
 
+    /// Adds `other`'s totals to the current ones, for reconciling counts made
+    /// before a stored aggregate could be read.
+    pub fn absorb(&self, other: &SavingsAggregate) {
+        let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
+        let aggregate = &mut state.aggregate;
+        merge_bucket(&mut aggregate.total, &other.total);
+        for (key, bucket) in &other.by_model {
+            merge_bucket(aggregate.by_model.entry(key.clone()).or_default(), bucket);
+        }
+        for (key, bucket) in &other.by_compressor {
+            merge_bucket(
+                aggregate.by_compressor.entry(key.clone()).or_default(),
+                bucket,
+            );
+        }
+    }
+
     /// Records a strictly smaller compaction into the in-memory totals.
     ///
     /// Equal or expanded output is a no-op. Negative or non-finite input
@@ -85,6 +102,16 @@ impl SavingsLedger {
         let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
         state.aggregate = SavingsAggregate::default();
     }
+}
+
+/// Add one bucket into another, saturating like [`add`].
+fn merge_bucket(into: &mut SavingsBucket, from: &SavingsBucket) {
+    into.events = into.events.saturating_add(from.events);
+    into.original_tokens = into.original_tokens.saturating_add(from.original_tokens);
+    into.compacted_tokens = into.compacted_tokens.saturating_add(from.compacted_tokens);
+    into.tokens_saved = into.tokens_saved.saturating_add(from.tokens_saved);
+    let cost = into.cost_saved_usd + from.cost_saved_usd;
+    into.cost_saved_usd = if cost.is_finite() { cost } else { f64::MAX };
 }
 
 /// Accumulate one event without wrapping persisted totals at their limits.

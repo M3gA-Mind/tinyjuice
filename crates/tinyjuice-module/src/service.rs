@@ -221,7 +221,7 @@ impl Compression {
         &self,
         legacy: tinyjuice_bus::savings::SavingsAggregate,
     ) -> BusResult<bool> {
-        Ok(savings().import(self.connection.as_ref(), legacy).await)
+        savings().import(self.connection.as_ref(), legacy).await
     }
 }
 

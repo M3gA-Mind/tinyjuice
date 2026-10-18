@@ -64,6 +64,23 @@ fn replace_restores_totals_and_later_records_accumulate() {
 }
 
 #[test]
+fn absorb_adds_counts_made_before_a_stored_aggregate_was_read() {
+    let stored = SavingsLedger::new();
+    stored.record(&request("m", 2000, 1000, Some(3.0)));
+    let early = SavingsLedger::new();
+    early.record(&request("m", 400, 100, Some(3.0)));
+    early.record(&request("other", 400, 300, None));
+    let merged = SavingsLedger::new();
+    merged.replace(stored.stats());
+    merged.absorb(&early.stats());
+    let aggregate = merged.stats();
+    assert_eq!(aggregate.total.events, 3);
+    assert_eq!(aggregate.total.tokens_saved, 1400);
+    assert_eq!(aggregate.by_model["m"].events, 2);
+    assert_eq!(aggregate.by_model["other"].tokens_saved, 100);
+}
+
+#[test]
 fn the_aggregate_keeps_its_camel_case_wire_shape() {
     let ledger = SavingsLedger::new();
     ledger.record(&request("m", 2000, 1000, Some(3.0)));
