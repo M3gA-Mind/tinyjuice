@@ -163,10 +163,16 @@ fn periodic_write_sweep_removes_expired_entries() {
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let dir = tempfile::tempdir().unwrap();
     enable_disk_tier(dir.path().to_path_buf());
-    crate::cache::configure(usize::MAX, usize::MAX, Some(1));
+    const TTL_SECS: u64 = 30 * 24 * 60 * 60;
+    crate::cache::configure(usize::MAX, usize::MAX, Some(TTL_SECS));
     configure_disk_cap(Some(DEFAULT_DISK_MAX_BYTES));
 
-    let expired = write_aged(dir.path(), &token('a'), 10, Duration::from_secs(60));
+    let expired = write_aged(
+        dir.path(),
+        &token('a'),
+        10,
+        Duration::from_secs(TTL_SECS + 60),
+    );
     // A full interval guarantees that the process-wide write counter reaches a
     // sweep regardless of where other tests left it.
     for index in 0..DISK_CAP_ENFORCE_EVERY {
