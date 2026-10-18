@@ -368,12 +368,13 @@ pub fn retrieve(hash: &str) -> Option<String> {
     if let Some(found) = durable.and_then(|store| store.get(hash)) {
         return Some(found);
     }
-    // Disk fallback, available only to standalone CLI builds.
+    // Filesystem fallback, available only to standalone CLI builds.
     #[cfg(feature = "cli-disk-tier")]
-    if let Some(found) = crate::cache::disk_tier::get(hash, ttl) {
-        return Some(found);
+    {
+        if let Some(found) = crate::cache::disk_tier::get(hash, ttl) {
+            return Some(found);
+        }
     }
-    #[cfg(not(feature = "cli-disk-tier"))]
     None
 }
 
