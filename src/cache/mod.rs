@@ -1,9 +1,9 @@
 //! CCR (Compress-Cache-Retrieve) — original storage + retrieval markers.
 
-pub mod marker;
-pub mod store;
 #[cfg(feature = "cli-disk-tier")]
 mod disk_tier;
+pub mod marker;
+pub mod store;
 
 pub use marker::{
     LEGACY_RETRIEVE_TOOL_NAME, NEVER_COMPACT_TOOLS, RECOVERY_TOOL_NAMES, RETRIEVE_TOOL_NAME,

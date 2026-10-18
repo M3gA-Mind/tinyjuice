@@ -307,11 +307,9 @@ pub fn offload_checked_with_hash(hash: &str, content: &str) -> bool {
     // Rewriting an existing hash intentionally refreshes the file mtime, which
     // is the TTL clock for disk-backed CCR entries.
     #[cfg(feature = "cli-disk-tier")]
-    let mut disk_retained = false;
+    let disk_retained = crate::cache::disk_tier::put(hash, content);
     #[cfg(not(feature = "cli-disk-tier"))]
     let disk_retained = false;
-    #[cfg(feature = "cli-disk-tier")]
-    let disk_retained = crate::cache::disk_tier::put(hash, content);
     // Mirror to the host-provided durable tier (best-effort).
     let durable = durable_tier()
         .read()

@@ -23,6 +23,7 @@ pub struct InstallRequest {
     /// module's own default.
     pub ccr_ttl_secs: Option<u64>,
     /// Whether originals outlive memory through the host's durable CCR store.
+    #[serde(default)]
     pub ccr_durable: bool,
 }
 
