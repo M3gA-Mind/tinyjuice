@@ -689,8 +689,9 @@ async fn code_is_not_cut_without_ccr() {
 async fn code_collapses_with_ccr() {
     let o = opts();
     assert!(o.ccr_enabled);
+    let store = cache::MemoryCcrStore::default();
     let original = big_code_file();
-    let res = compress_content(&original, Some(code_hint()), &o).await;
+    let res = compress_content_with_store(&original, Some(code_hint()), &o, &store).await;
     assert_eq!(res.content_kind, ContentKind::Code);
     assert!(res.applied, "CCR makes the collapse recoverable");
     assert!(res.text.len() < original.len());
@@ -702,7 +703,7 @@ async fn code_collapses_with_ccr() {
         "recoverable tokens present: {}",
         res.text
     );
-    let body = cache::retrieve(&tokens[0]).expect("stored");
+    let body = store.get(&tokens[0]).expect("stored");
     assert!(body.contains("tmp_0_15"), "full body recoverable: {body}");
 }
 
