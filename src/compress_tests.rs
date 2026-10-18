@@ -93,9 +93,15 @@ async fn detected_kind_routes_to_its_compressor_and_lossy_output_is_recoverable(
         ),
         (
             ContentKind::PlainText,
-            (0..160)
-                .map(|i| format!("Routine update {i}: the worker completed another ordinary queue item successfully.\n"))
-                .collect::<String>(),
+            format!(
+                "{}ERROR sync.worker.v2 failed for REQUEST_ID 9F42 after retry 17.\n{}",
+                (0..80)
+                    .map(|i| format!("Routine update {i}: the worker completed another ordinary queue item successfully.\n"))
+                    .collect::<String>(),
+                (80..160)
+                    .map(|i| format!("Routine update {i}: the worker completed another ordinary queue item successfully.\n"))
+                    .collect::<String>()
+            ),
         ),
     ];
 
@@ -103,7 +109,11 @@ async fn detected_kind_routes_to_its_compressor_and_lossy_output_is_recoverable(
         let hint = ContentHint {
             explicit: Some(expected_kind),
             extension: (expected_kind == ContentKind::Code).then(|| "rs".to_string()),
-            query: (expected_kind == ContentKind::Search).then(|| "matching_result".to_string()),
+            query: match expected_kind {
+                ContentKind::Search => Some("matching_result".to_string()),
+                ContentKind::PlainText => Some("sync.worker.v2 REQUEST_ID".to_string()),
+                _ => None,
+            },
             ..Default::default()
         };
         let detected = detect_content_kind(&content, &hint);
