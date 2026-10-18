@@ -234,8 +234,15 @@ fn the_module_grant_is_its_schema_at_module_scope() {
         .iter()
         .map(|item| match item {
             Item::Blobs { prefix, scope } => (prefix.as_str(), *scope),
-            other => panic!("the module stores only blobs, got {other:?}"),
+            Item::Collection { name, scope, .. } => (name.as_str(), *scope),
+            other => panic!("the module stores blobs and collections only, got {other:?}"),
         })
         .collect();
-    assert_eq!(grant, [("juice/ccr/", ScopeClass::Module)]);
+    assert_eq!(
+        grant,
+        [
+            ("juice/ccr/", ScopeClass::Module),
+            ("juice.savings", ScopeClass::Module)
+        ]
+    );
 }
