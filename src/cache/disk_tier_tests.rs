@@ -121,7 +121,7 @@ fn configured_tier_reads_entries_expires_them_and_runs_gc() {
 #[test]
 fn configured_gc_sweeps_the_selected_directory() {
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join(token('g'));
+    let path = dir.path().join(token('a'));
     std::fs::write(&path, "remove me").unwrap();
 
     let stats = gc_disk_tier_at(Some(dir.path().to_path_buf()), None, Some(0)).unwrap();
