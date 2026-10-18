@@ -26,8 +26,9 @@ in-process bus.
 ## Wire shapes
 
 All object fields use camelCase. `Install` accepts one object with `options`,
-`maxCacheEntries`, `maxCacheBytes`, and the optional `ccrTtlSecs` and
-`diskTierRoot`. `options` is a `CompressOptions` object; omitted option fields
+`maxCacheEntries`, `maxCacheBytes`, `ccrDurable`, and optional `ccrTtlSecs`.
+`ccrDurable` tells the module to use the host-provided durable CCR store;
+it never names a filesystem path. `options` is a `CompressOptions` object; omitted option fields
 take their defaults, so a future knob does not break an older host.
 
 `Compress` accepts `(content, hint)`. The hint fields `mime`, `extension`,

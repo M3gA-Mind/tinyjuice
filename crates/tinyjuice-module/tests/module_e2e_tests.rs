@@ -59,7 +59,7 @@ async fn the_built_module_compresses_and_recovers_over_a_real_broker() {
                 "maxCacheEntries": 8,
                 "maxCacheBytes": 1048576,
                 "ccrTtlSecs": null,
-                "diskTierRoot": null
+                "ccrDurable": false
             }),),
         )
         .await
@@ -185,7 +185,7 @@ async fn compact_with_calls_back_to_the_host_for_a_focused_summary(
                 "maxCacheEntries": 8,
                 "maxCacheBytes": 1048576,
                 "ccrTtlSecs": null,
-                "diskTierRoot": null
+                "ccrDurable": false
             }),),
         )
         .await

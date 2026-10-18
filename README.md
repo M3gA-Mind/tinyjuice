@@ -272,9 +272,11 @@ helpers still use the process-global `GlobalCcrStore` for compatibility. New
 tests and host adapters can use `MemoryCcrStore` to assert CCR behavior without
 touching the global cache.
 
-The CLI `ls`, `cat`, and `stats` commands operate only on an explicit CCR disk
-tier via `--store-dir`; they do not imply access to another process's in-memory
-cache. `cat` supports `--lines START:END` and `--bytes START:END` ranges.
+The standalone CLI's `ls`, `cat`, `stats`, and `gc` commands are compiled with
+the opt-in `cli-disk-tier` feature and operate only on an explicit CCR disk tier
+via `--store-dir`; library and hosted module builds do not contain this tier.
+They do not imply access to another process's in-memory cache. `cat` supports
+`--lines START:END` and `--bytes START:END` ranges.
 `stats` reports metadata-only counts and byte totals without reading token
 content.
 
