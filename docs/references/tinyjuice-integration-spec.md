@@ -217,7 +217,7 @@ in CCR.
 Requirements:
 
 - recovery token format is fixed and validated
-- retrieval first checks memory, then optional disk tier
+- retrieval checks memory, then the host-provided durable CCR store
 - disk paths are never derived from unvalidated user text
 - recovery tool output is never compacted again
 - adapters expose retrieval as a normal host tool where supported

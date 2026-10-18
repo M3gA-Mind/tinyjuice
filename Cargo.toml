@@ -37,7 +37,7 @@ jaq-json = { version = "2", optional = true }
 # The wire contract, defined once and shared with the module and with hosts.
 # This crate re-exports its types from `src/types.rs` rather than declaring a
 # second copy — see the note there.
-tinyjuice-bus = { version = "0.10.4", path = "crates/tinyjuice-bus" }
+tinyjuice-bus = { version = "0.10.9", path = "crates/tinyjuice-bus" }
 async-trait = "0.1"
 dirs = "7"
 hex = "0.4"
