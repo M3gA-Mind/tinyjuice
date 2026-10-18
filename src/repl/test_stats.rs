@@ -64,8 +64,8 @@ async fn router_repl_handle_keeps_original_only_in_ccr() {
     let dir = std::env::temp_dir().join(format!("tj-router-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let mut options = serde_json::to_value(CompressOptions::default()).unwrap();
-    options["repl_handle"] = serde_json::json!(true);
-    options["repl_save_dir"] = serde_json::json!(dir);
+    options["replHandle"] = serde_json::json!(true);
+    options["replSaveDir"] = serde_json::json!(dir);
     let opts: CompressOptions = serde_json::from_value(options).unwrap();
     let hint = ContentHint::default();
     let input = CompressInput {
