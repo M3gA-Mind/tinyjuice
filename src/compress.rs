@@ -241,7 +241,6 @@ pub async fn route_with_store_report_shell_policy(
                     original_bytes,
                     compacted_bytes,
                     stats: Some(stats),
-                    saved_path: None,
                 };
                 let report = PipelineReport::applied(
                     kind,
@@ -438,7 +437,6 @@ pub async fn route_with_store_report_shell_policy(
         original_bytes,
         compacted_bytes,
         stats: None,
-        saved_path: None,
     };
     let report = PipelineReport::applied(
         kind,
@@ -652,7 +650,6 @@ fn finalize_typed_output(
         original_bytes,
         compacted_bytes,
         stats: None,
-        saved_path: None,
     };
     Some((res, report))
 }

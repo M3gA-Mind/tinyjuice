@@ -55,28 +55,6 @@ fn head_is_capped_at_500_chars() {
     assert_eq!(stats::head("short"), "short");
 }
 
-#[test]
-fn write_handle_file_round_trips_and_is_idempotent() {
-    let dir = std::env::temp_dir().join(format!("tj-handle-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    let p = write_handle_file(&dir, "abc123", "hello\nworld").unwrap();
-    assert_eq!(std::fs::read_to_string(&p).unwrap(), "hello\nworld");
-    assert_eq!(p.extension().unwrap(), "txt");
-    assert_eq!(write_handle_file(&dir, "abc123", "ignored").unwrap(), p);
-    assert!(write_handle_file(&dir, "../evil", "x").is_none());
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mode = std::fs::metadata(&p).unwrap().permissions().mode();
-        assert_eq!(mode & 0o777, 0o600);
-    }
-    let _ = std::fs::remove_dir_all(&dir);
-    let fixture = tempfile::tempdir().unwrap();
-    let blocked = fixture.path().join("not-a-directory");
-    std::fs::write(&blocked, "fixture").unwrap();
-    assert!(write_handle_file(&blocked.join("child"), "abc", "x").is_none());
-}
-
 #[tokio::test]
 async fn router_repl_handle_keeps_original_only_in_ccr() {
     use crate::compress::route_with_store_report;
@@ -109,7 +87,6 @@ async fn router_repl_handle_keeps_original_only_in_ccr() {
     let stats = out.stats.expect("stats");
     assert!(out.body.starts_with(&format!("[{stats}]")));
     assert!(out.body.contains(&content[..200]), "head snippet missing");
-    assert!(out.saved_path.is_none());
     assert!(!dir.exists(), "legacy save path must not write the original");
     assert_eq!(store.get(out.ccr_token.as_deref().unwrap()).as_deref(), Some(content.as_str()));
 }
@@ -124,7 +101,6 @@ async fn rejected_handle_view_leaves_no_saved_file() {
     let _ = std::fs::remove_dir_all(&dir);
     let opts = CompressOptions {
         repl_handle: true,
-        repl_save_dir: Some(dir.clone()),
         ccr_min_tokens: 0,
         ..CompressOptions::default()
     };
@@ -139,7 +115,6 @@ async fn rejected_handle_view_leaves_no_saved_file() {
         original_bytes: content.len(),
     };
     let (out, _) = route_with_store_report(input, &opts, &store).await;
-    assert!(out.saved_path.is_none());
     let leftover = std::fs::read_dir(&dir).map(|d| d.count()).unwrap_or(0);
     assert_eq!(leftover, 0, "unreferenced copy left behind");
     let _ = std::fs::remove_dir_all(&dir);
