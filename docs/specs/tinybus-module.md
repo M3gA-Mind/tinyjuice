@@ -112,18 +112,24 @@ matching lines before allocating remaining context slots. An explicit summary
 
 ## Model-attributed savings (contract 2.1)
 
-The module owns aggregation and best-effort JSON snapshot persistence. Hosts
+The module owns aggregation and persistence. Since contract 2.3 the totals are
+one document, `juice.savings/totals` (snake_case body, `updated_ms`), in the
+module's scope of the host's storage; a host that serves no storage keeps them
+in memory. Hosts
 link only `tinyjuice-bus::savings` and call these members:
 
-- `ConfigureSavings(snapshot_path: String) -> ()` loads the snapshot once per
-  path. Repeating the same path preserves current in-memory totals.
+- `ConfigureSavings(snapshot_path: String) -> ()` is a deprecated no-op since
+  2.3 (there is no snapshot file).
+- `ImportSavings(SavingsAggregate) -> bool` (2.3) adopts a legacy camelCase
+  snapshot the host read from its old file, only while nothing has been
+  recorded; `false` means totals already existed and nothing changed.
 - `RecordSavings(RecordSavingsRequest) -> ()` records a positive token saving.
   The host supplies the attribution model, compressor identifier, pre/post
   token estimates, and its catalog lookup of the input price per million
   tokens. `None` records token savings with zero estimated dollar savings.
 - `SavingsStats() -> SavingsAggregate` returns total, model, and compressor
   breakdowns in the existing camelCase dashboard/snapshot format.
-- `ResetSavings() -> ()` clears the totals and persists an empty snapshot.
+- `ResetSavings() -> ()` clears the totals, in memory and in storage.
 
 The ledger does not call a hosted pricing service or depend on a host cost
 catalog. A pricing callback remains host-owned; its result crosses the bus in
