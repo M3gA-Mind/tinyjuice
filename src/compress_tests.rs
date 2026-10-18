@@ -120,15 +120,24 @@ async fn detected_kind_routes_to_its_compressor_and_lossy_output_is_recoverable(
         assert_eq!(detected, expected_kind, "fixture for {expected_kind:?}");
 
         let output = compress_content_with_store(&content, Some(hint), &options, &store).await;
-        assert_eq!(output.content_kind, detected, "compress route for {expected_kind:?}");
-        assert!(output.applied, "fixture should exercise {expected_kind:?} compression");
+        assert_eq!(
+            output.content_kind, detected,
+            "compress route for {expected_kind:?}"
+        );
+        assert!(
+            output.applied,
+            "fixture should exercise {expected_kind:?} compression"
+        );
         assert_eq!(
             output.compressor,
             compressor_for(detected).kind(),
             "compressor route for {expected_kind:?}"
         );
         if output.lossy {
-            let token = output.ccr_token.as_deref().expect("lossy output retains CCR token");
+            let token = output
+                .ccr_token
+                .as_deref()
+                .expect("lossy output retains CCR token");
             assert_eq!(
                 store.get(token).as_deref(),
                 Some(content.as_str()),
