@@ -313,7 +313,7 @@ pub async fn route_with_store_report_shell_policy(
         ContentKind::Search if !opts.search_enabled => None,
         ContentKind::Code if !opts.code_enabled => None,
         ContentKind::Html if !opts.html_enabled => None,
-        _ => Some(compressor_for(ContentKind::PlainText)),
+        _ => Some(compressor_for(kind)),
     };
 
     // Try the primary compressor; if it declines, fall back to the generic
