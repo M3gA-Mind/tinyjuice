@@ -53,9 +53,13 @@ async fn detected_kind_routes_to_its_compressor_and_lossy_output_is_recoverable(
         ),
         (
             ContentKind::Code,
-            (0..100)
-                .map(|i| format!("fn account_{i}() {{ let value = {i}; println!(\"{{}}\", value); }}\n"))
-                .collect::<String>(),
+            format!(
+                "pub fn visible() {{\n{}\n}}\n",
+                (0..40)
+                    .map(|i| format!("    println!(\"account {i}\");"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ),
         ),
         (
             ContentKind::Log,
@@ -98,6 +102,7 @@ async fn detected_kind_routes_to_its_compressor_and_lossy_output_is_recoverable(
     for (expected_kind, content) in cases {
         let hint = ContentHint {
             explicit: Some(expected_kind),
+            extension: (expected_kind == ContentKind::Code).then(|| "rs".to_string()),
             ..Default::default()
         };
         let detected = detect_content_kind(&content, &hint);
