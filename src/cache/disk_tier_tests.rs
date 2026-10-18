@@ -153,6 +153,7 @@ fn enabling_tier_with_a_file_as_root_is_best_effort() {
         memory.get(stored.token()).as_deref(),
         Some("memory remains available")
     );
+    disable_disk_tier();
 }
 
 #[test]
@@ -172,7 +173,7 @@ fn periodic_write_sweep_removes_expired_entries() {
         put(&format!("{:032x}", index + 1), "fresh original");
     }
 
-    assert!(!expired.exists(), "periodic sweep must enforce the configured TTL");
+    let expired_remains = expired.exists();
     disable_disk_tier();
     crate::cache::configure(
         crate::cache::DEFAULT_MAX_ENTRIES,
@@ -180,6 +181,10 @@ fn periodic_write_sweep_removes_expired_entries() {
         None,
     );
     configure_disk_cap(Some(DEFAULT_DISK_MAX_BYTES));
+    assert!(
+        !expired_remains,
+        "periodic sweep must enforce the configured TTL"
+    );
 }
 
 #[test]
