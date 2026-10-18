@@ -107,7 +107,6 @@ async fn detected_kind_routes_to_its_compressor_and_lossy_output_is_recoverable(
 
     for (expected_kind, content) in cases {
         let hint = ContentHint {
-            explicit: Some(expected_kind),
             extension: (expected_kind == ContentKind::Code).then(|| "rs".to_string()),
             query: match expected_kind {
                 ContentKind::Search => Some("matching_result".to_string()),
