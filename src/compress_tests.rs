@@ -103,6 +103,7 @@ async fn detected_kind_routes_to_its_compressor_and_lossy_output_is_recoverable(
         let hint = ContentHint {
             explicit: Some(expected_kind),
             extension: (expected_kind == ContentKind::Code).then(|| "rs".to_string()),
+            query: (expected_kind == ContentKind::Search).then(|| "matching_result".to_string()),
             ..Default::default()
         };
         let detected = detect_content_kind(&content, &hint);
