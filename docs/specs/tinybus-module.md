@@ -139,7 +139,8 @@ at `u64::MAX` and `f64::MAX`, respectively.
 Counts are estimates, not provider-measured usage. The `SavingsRecord` event
 callback surface remains available separately for richer accounting.
 
-The snapshot path is trusted host configuration, like the cache disk root.
-Missing or malformed snapshots retain the current totals, matching the former
-OpenHuman ledger. Switching paths does not create an isolated per-user ledger;
-hosts requiring that isolation must use separate module instances or reset.
+Totals are stored per module scope: a host that wants a ledger per user binds
+the module's storage scope per user (or uses separate module instances). A
+legacy snapshot file is read by the host and handed over once with
+`ImportSavings`; a malformed file is the host's to skip, matching the former
+OpenHuman ledger.

@@ -27,7 +27,13 @@ struct State {
     /// A reset happened before the stored document could be read, so the
     /// stored totals must be discarded rather than added to.
     reset_early: bool,
+    /// When the last attempt to reach the document port failed, so a host
+    /// without storage is not asked again on every call.
+    last_connect_failure: Option<std::time::Instant>,
 }
+
+/// How long to wait before asking again for a document port that was absent.
+const CONNECT_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// The module's savings ledger and its storage.
 pub(crate) struct Savings {
@@ -86,8 +92,12 @@ impl Savings {
             log::debug!("[tinyjuice_module][savings] import skipped: totals exist");
             return Ok(false);
         }
+        let previous = self.ledger.stats();
         self.ledger.replace(legacy);
-        self.persist(&state).await;
+        if !self.persist(&state).await {
+            self.ledger.replace(previous);
+            return Err(tinybus::Error::failed("savings could not be written"));
+        }
         Ok(true)
     }
 
@@ -105,7 +115,14 @@ impl Savings {
             return;
         };
         if state.docs.is_none() {
+            if state
+                .last_connect_failure
+                .is_some_and(|at| at.elapsed() < CONNECT_COOLDOWN)
+            {
+                return;
+            }
             state.docs = crate::storage::documents(connection.clone()).await;
+            state.last_connect_failure = state.docs.is_none().then(std::time::Instant::now);
         }
         let Some(docs) = state.docs.as_ref() else {
             return;
@@ -134,26 +151,27 @@ impl Savings {
         }
     }
 
-    async fn persist(&self, state: &State) {
+    /// Write the ledger. `true` when it is stored, or when there is no
+    /// storage to write to; `false` when a write failed.
+    async fn persist(&self, state: &State) -> bool {
         // Nothing is written until the stored document has been read, so an
         // unread older document is never overwritten blindly.
         if !state.loaded {
-            return;
+            return true;
         }
         let Some(docs) = state.docs.as_ref() else {
-            return;
+            return true;
         };
         let body = StoredSavings::from_aggregate(&self.ledger.stats(), now_ms());
-        if let Err(error) = docs
-            .put_as(
-                SAVINGS_COLLECTION,
-                SAVINGS_DOC_ID,
-                &body,
-                Precondition::None,
-            )
+        match docs
+            .put_as(SAVINGS_COLLECTION, SAVINGS_DOC_ID, &body, Precondition::None)
             .await
         {
-            log::debug!("[tinyjuice_module][savings] write failed: {error}");
+            Ok(_) => true,
+            Err(error) => {
+                log::warn!("[tinyjuice_module][savings] write failed: {error}");
+                false
+            }
         }
     }
 }
