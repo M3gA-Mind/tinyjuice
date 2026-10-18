@@ -46,7 +46,7 @@ async fn detected_kind_routes_to_its_compressor_and_lossy_output_is_recoverable(
             format!(
                 "[{}]",
                 (0..160)
-                    .map(|i| format!(r#"{{\"id\":{i},\"name\":\"account_{i}\",\"status\":\"active\"}}"#))
+                    .map(|i| format!(r#"{{"id":{i},"name":"account_{i}","status":"active"}}"#))
                     .collect::<Vec<_>>()
                     .join(",")
             ),
@@ -105,13 +105,12 @@ async fn detected_kind_routes_to_its_compressor_and_lossy_output_is_recoverable(
 
         let output = compress_content_with_store(&content, Some(hint), &options, &store).await;
         assert_eq!(output.content_kind, detected, "compress route for {expected_kind:?}");
-        if output.applied {
-            assert_eq!(
-                output.compressor,
-                compressor_for(detected).kind(),
-                "compressor route for {expected_kind:?}"
-            );
-        }
+        assert!(output.applied, "fixture should exercise {expected_kind:?} compression");
+        assert_eq!(
+            output.compressor,
+            compressor_for(detected).kind(),
+            "compressor route for {expected_kind:?}"
+        );
         if output.lossy {
             let token = output.ccr_token.as_deref().expect("lossy output retains CCR token");
             assert_eq!(
