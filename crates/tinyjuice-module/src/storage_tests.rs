@@ -15,13 +15,27 @@ pub(crate) static INSTALL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_ne
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-struct Rig {
-    module: Connection,
-    backend: MemoryStorage,
+pub(crate) struct Rig {
+    pub(crate) module: Connection,
+    pub(crate) backend: MemoryStorage,
+    host: Connection,
     _served: Option<ServedStorage>,
 }
 
-async fn rig(serve_storage: bool) -> Result<Rig, Box<dyn std::error::Error>> {
+impl Rig {
+    /// Start serving storage on a rig built without it.
+    pub(crate) async fn serve_storage(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let bound = self.backend.clone();
+        let endpoint = PerCallerEndpoint::new(move |_sender| {
+            let scoped: ScopedStorage = bound.for_scope(&Scope::local()).ok()?;
+            Some(StorageServer::new(scoped))
+        });
+        self._served = Some(serve(&self.host, Arc::new(endpoint)).await?);
+        Ok(())
+    }
+}
+
+pub(crate) async fn rig(serve_storage: bool) -> Result<Rig, Box<dyn std::error::Error>> {
     let bus = MemoryBus::new();
     Broker::new().spawn(bus.clone());
     let backend = MemoryStorage::new();
@@ -37,11 +51,10 @@ async fn rig(serve_storage: bool) -> Result<Rig, Box<dyn std::error::Error>> {
         None
     };
     let module = Connection::connect(bus.connect().await?).await?;
-    // Keep the host connection alive for the life of the broker.
-    std::mem::forget(host);
     Ok(Rig {
         module,
         backend,
+        host,
         _served: served,
     })
 }
@@ -234,8 +247,15 @@ fn the_module_grant_is_its_schema_at_module_scope() {
         .iter()
         .map(|item| match item {
             Item::Blobs { prefix, scope } => (prefix.as_str(), *scope),
-            other => panic!("the module stores only blobs, got {other:?}"),
+            Item::Collection { name, scope, .. } => (name.as_str(), *scope),
+            other => panic!("the module stores blobs and collections only, got {other:?}"),
         })
         .collect();
-    assert_eq!(grant, [("juice/ccr/", ScopeClass::Module)]);
+    assert_eq!(
+        grant,
+        [
+            ("juice/ccr/", ScopeClass::Module),
+            ("juice.savings", ScopeClass::Module)
+        ]
+    );
 }

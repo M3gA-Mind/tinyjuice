@@ -5,16 +5,29 @@ use tinystoragedrivers_core::{MemoryStorage, Scope, StorageBackend};
 const LEGACY: &str = "tinyjuice_ccr/";
 
 #[test]
-fn the_schema_declares_the_ccr_blobs_at_module_scope() {
+fn the_schema_declares_the_ccr_blobs_and_the_savings_collection_at_module_scope() {
     let schema = storage_schema();
     let items: Vec<_> = schema.items.iter().collect();
-    assert_eq!(items.len(), 1, "CCR blobs are the only thing juice stores");
+    assert_eq!(items.len(), 2, "CCR blobs and savings are all juice stores");
     match items[0] {
         Item::Blobs { prefix, scope } => {
             assert_eq!(prefix, "juice/ccr/");
             assert_eq!(*scope, ScopeClass::Module);
         }
         other => panic!("expected a blob prefix, got {other:?}"),
+    }
+    match items[1] {
+        Item::Collection {
+            name,
+            version,
+            scope,
+            ..
+        } => {
+            assert_eq!(name, "juice.savings");
+            assert_eq!(*version, 1);
+            assert_eq!(*scope, ScopeClass::Module);
+        }
+        other => panic!("expected the savings collection, got {other:?}"),
     }
     assert!(
         format!("{CCR_PREFIX}/token").starts_with("juice/ccr/"),
@@ -93,4 +106,26 @@ fn a_key_outside_the_legacy_prefix_has_nothing_to_move() {
     assert_eq!(key, "juice/ccr/ab");
     assert_eq!(content_type.as_deref(), Some("text/plain"));
     assert_eq!(bytes, b"x");
+}
+
+#[test]
+fn the_savings_body_is_snake_case_with_ms_times_and_round_trips() {
+    use crate::savings::{SavingsAggregate, SavingsBucket, StoredSavings};
+    let mut aggregate = SavingsAggregate::default();
+    let bucket = SavingsBucket {
+        events: 1,
+        original_tokens: 200,
+        compacted_tokens: 100,
+        tokens_saved: 100,
+        cost_saved_usd: 0.5,
+    };
+    aggregate.total = bucket.clone();
+    aggregate.by_model.insert("m".into(), bucket);
+    let body = serde_json::to_value(StoredSavings::from_aggregate(&aggregate, 1234)).unwrap();
+    assert_eq!(body["total"]["tokens_saved"], 100);
+    assert_eq!(body["by_model"]["m"]["original_tokens"], 200);
+    assert_eq!(body["updated_ms"], 1234);
+    assert!(body["total"].get("tokensSaved").is_none());
+    let back: StoredSavings = serde_json::from_value(body).unwrap();
+    assert_eq!(back.into_aggregate().by_model["m"].compacted_tokens, 100);
 }

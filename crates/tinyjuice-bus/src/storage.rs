@@ -1,5 +1,7 @@
 //! What TinyJuice stores, as a schema the host composes.
 //!
+//! The savings totals are one document in `juice.savings`.
+//!
 //! The CCR store's originals are blobs under `juice/ccr/<token>`. The module
 //! runs for one tenant at a time, so they live at [`ScopeClass::Module`], and a
 //! host derives the module's storage grant from this schema rather than
@@ -14,6 +16,11 @@ use tinystoragedrivers_core::schema::{BlobOutput, Owner, Schema, ScopeClass, Ste
 
 /// Where the CCR store keeps originals, `juice/ccr/<token>` (no trailing slash).
 pub const CCR_PREFIX: &str = "juice/ccr";
+
+/// The savings totals: one document (`savings::SAVINGS_DOC_ID`) per module
+/// scope, a snake_case body with `updated_ms`. Schema v2 introduced it; before
+/// that the host kept `state/tokenjuice_savings.json`.
+pub const SAVINGS_COLLECTION: &str = "juice.savings";
 
 /// Where schema v1 kept the originals, `tinyjuice_ccr/<token>`.
 const LEGACY_PREFIX: &str = "tinyjuice_ccr/";
@@ -32,6 +39,7 @@ pub fn storage_schema() -> Schema {
     let prefix = format!("{CCR_PREFIX}/");
     Schema::new(Owner::new(OWNER).expect("`juice` is a valid schema owner"))
         .blobs(&prefix, ScopeClass::Module)
+        .collection(SAVINGS_COLLECTION, 1, ScopeClass::Module)
         .step(ccr_prefix_step())
 }
 
