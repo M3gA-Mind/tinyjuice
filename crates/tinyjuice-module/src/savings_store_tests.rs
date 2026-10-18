@@ -66,13 +66,15 @@ async fn a_new_process_resumes_the_stored_totals() -> TestResult {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn import_adopts_a_legacy_snapshot_only_when_nothing_was_recorded() -> TestResult {
     let rig = rig(true).await?;
-    let mut legacy = SavingsAggregate::default();
-    legacy.total = SavingsBucket {
-        events: 3,
-        original_tokens: 30,
-        compacted_tokens: 10,
-        tokens_saved: 20,
-        cost_saved_usd: 0.1,
+    let legacy = SavingsAggregate {
+        total: SavingsBucket {
+            events: 3,
+            original_tokens: 30,
+            compacted_tokens: 10,
+            tokens_saved: 20,
+            cost_saved_usd: 0.1,
+        },
+        ..Default::default()
     };
     let savings = Savings::new();
     assert!(savings.import(Some(&rig.module), legacy.clone()).await);
