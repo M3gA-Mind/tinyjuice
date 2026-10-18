@@ -106,7 +106,7 @@ async fn without_a_storage_host_totals_stay_in_memory() -> TestResult {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn totals_recorded_before_storage_answers_are_added_to_the_stored_ones() -> TestResult {
-    let mut rig = rig(true).await?;
+    let rig = rig(true).await?;
     Savings::new()
         .record(Some(&rig.module), &req(200, 100))
         .await;
