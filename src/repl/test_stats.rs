@@ -78,18 +78,17 @@ fn write_handle_file_round_trips_and_is_idempotent() {
 }
 
 #[tokio::test]
-async fn router_repl_handle_reports_stats_head_and_saved_file() {
+async fn router_repl_handle_keeps_original_only_in_ccr() {
     use crate::compress::route_with_store_report;
     use crate::types::{CompressInput, CompressOptions, CompressorKind, ContentHint};
     let store = MemoryCcrStore::default();
     let content = json_doc();
     let dir = std::env::temp_dir().join(format!("tj-router-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    let opts = CompressOptions {
-        repl_handle: true,
-        repl_save_dir: Some(dir.clone()),
-        ..CompressOptions::default()
-    };
+    let mut options = serde_json::to_value(CompressOptions::default()).unwrap();
+    options["repl_handle"] = serde_json::json!(true);
+    options["repl_save_dir"] = serde_json::json!(dir);
+    let opts: CompressOptions = serde_json::from_value(options).unwrap();
     let hint = ContentHint::default();
     let input = CompressInput {
         content: &content,
@@ -110,10 +109,9 @@ async fn router_repl_handle_reports_stats_head_and_saved_file() {
     let stats = out.stats.expect("stats");
     assert!(out.body.starts_with(&format!("[{stats}]")));
     assert!(out.body.contains(&content[..200]), "head snippet missing");
-    let path = out.saved_path.expect("saved path");
-    assert!(out.text.contains(path.to_str().unwrap()));
-    assert_eq!(std::fs::read_to_string(&path).unwrap(), content);
-    let _ = std::fs::remove_dir_all(&dir);
+    assert!(out.saved_path.is_none());
+    assert!(!dir.exists(), "legacy save path must not write the original");
+    assert_eq!(store.get(out.ccr_token.as_deref().unwrap()).as_deref(), Some(content.as_str()));
 }
 
 #[tokio::test]
