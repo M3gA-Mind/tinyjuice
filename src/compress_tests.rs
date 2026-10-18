@@ -33,6 +33,97 @@ async fn routes_json_and_offloads() {
 }
 
 #[tokio::test]
+async fn detected_kind_routes_to_its_compressor_and_lossy_output_is_recoverable() {
+    use crate::cache::CcrStore;
+    use crate::types::ContentKind;
+
+    let mut options = opts();
+    options.ccr_min_tokens = 1;
+    let store = cache::MemoryCcrStore::new(16, 1_000_000);
+    let cases = [
+        (
+            ContentKind::Json,
+            format!(
+                "[{}]",
+                (0..160)
+                    .map(|i| format!(r#"{{\"id\":{i},\"name\":\"account_{i}\",\"status\":\"active\"}}"#))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+        ),
+        (
+            ContentKind::Code,
+            (0..100)
+                .map(|i| format!("fn account_{i}() {{ let value = {i}; println!(\"{{}}\", value); }}\n"))
+                .collect::<String>(),
+        ),
+        (
+            ContentKind::Log,
+            (0..120)
+                .map(|i| format!("2025-01-01T00:00:{i:02}Z ERROR worker-{i} failed request with retryable timeout\n"))
+                .collect::<String>(),
+        ),
+        (
+            ContentKind::Search,
+            (0..120)
+                .map(|i| format!("src/module_{i}.rs:{}:fn matching_result_{i}() {{}}\n", i + 1))
+                .collect::<String>(),
+        ),
+        (
+            ContentKind::Diff,
+            format!(
+                "diff --git a/Cargo.lock b/Cargo.lock\n@@ -1,300 +1,300 @@\n{}",
+                (0..300)
+                    .map(|i| format!("+ dependency_{i} = \"{}.{}.{}\"\n", i % 4, i % 20, i))
+                    .collect::<String>()
+            ),
+        ),
+        (
+            ContentKind::Html,
+            format!(
+                "<!doctype html><html><body>{}</body></html>",
+                (0..120)
+                    .map(|i| format!("<section><h2>Result {i}</h2><p>Repeated page content for item {i}</p></section>"))
+                    .collect::<String>()
+            ),
+        ),
+        (
+            ContentKind::PlainText,
+            (0..160)
+                .map(|i| format!("Routine update {i}: the worker completed another ordinary queue item successfully.\n"))
+                .collect::<String>(),
+        ),
+    ];
+
+    for (expected_kind, content) in cases {
+        let hint = ContentHint {
+            explicit: Some(expected_kind),
+            ..Default::default()
+        };
+        let detected = detect_content_kind(&content, &hint);
+        assert_eq!(detected, expected_kind, "fixture for {expected_kind:?}");
+
+        let output = compress_content_with_store(&content, Some(hint), &options, &store).await;
+        assert_eq!(output.content_kind, detected, "compress route for {expected_kind:?}");
+        if output.applied {
+            assert_eq!(
+                output.compressor,
+                compressor_for(detected).kind(),
+                "compressor route for {expected_kind:?}"
+            );
+        }
+        if output.lossy {
+            let token = output.ccr_token.as_deref().expect("lossy output retains CCR token");
+            assert_eq!(
+                store.get(token).as_deref(),
+                Some(content.as_str()),
+                "lossy output for {expected_kind:?} must recover every original byte"
+            );
+        }
+    }
+}
+
+#[tokio::test]
 async fn diff_noise_output_offloads_original_for_recovery() {
     let mut original = String::from("diff --git a/Cargo.lock b/Cargo.lock\n");
     original.push_str("@@ -1,800 +1,900 @@\n");
