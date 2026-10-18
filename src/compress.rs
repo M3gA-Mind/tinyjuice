@@ -218,21 +218,13 @@ pub async fn route_with_store_report_shell_policy(
         let put = store.put(content);
         if put.retained() {
             let token = put.token().to_string();
-            let pre_existing = opts
-                .repl_save_dir
-                .as_deref()
-                .is_some_and(|dir| dir.join(format!("{token}.txt")).is_file());
-            let saved = opts
-                .repl_save_dir
-                .as_deref()
-                .and_then(|dir| crate::repl::write_handle_file(dir, &token, content));
             let (body, footer, stats) = crate::repl::handle_view(
                 content,
                 &token,
                 kind,
                 opts.chars_per_token,
                 opts.repl_preview_chars,
-                saved.as_deref(),
+                None,
             );
             let text = format!("{body}{footer}");
             if text.len() < original_bytes {
@@ -249,7 +241,7 @@ pub async fn route_with_store_report_shell_policy(
                     original_bytes,
                     compacted_bytes,
                     stats: Some(stats),
-                    saved_path: saved,
+                    saved_path: None,
                 };
                 let report = PipelineReport::applied(
                     kind,
@@ -261,10 +253,6 @@ pub async fn route_with_store_report_shell_policy(
                 )
                 .with_bloat_estimate(bloat_estimate);
                 return (res, report);
-            }
-            // View rejected: do not leave an unreferenced sensitive copy behind.
-            if let (Some(path), false) = (saved.as_deref(), pre_existing) {
-                let _ = std::fs::remove_file(path);
             }
         }
     }
