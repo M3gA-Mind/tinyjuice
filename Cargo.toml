@@ -83,6 +83,18 @@ name = "tinyjuice-reduce"
 path = "src/main.rs"
 required-features = ["cli-disk-tier"]
 
+# These integration suites launch the CLI binaries, which are unavailable in
+# the default host build without the standalone CLI disk-tier feature.
+[[test]]
+name = "cli"
+path = "tests/cli.rs"
+required-features = ["cli-disk-tier"]
+
+[[test]]
+name = "host_cli"
+path = "tests/host_cli.rs"
+required-features = ["cli-disk-tier"]
+
 [[bench]]
 name = "compression"
 harness = false
