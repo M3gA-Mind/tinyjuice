@@ -77,14 +77,14 @@ async fn import_adopts_a_legacy_snapshot_only_when_nothing_was_recorded() -> Tes
         ..Default::default()
     };
     let savings = Savings::new();
-    assert!(savings.import(Some(&rig.module), legacy.clone()).await);
+    assert!(savings.import(Some(&rig.module), legacy.clone()).await?);
     assert_eq!(
         savings.stats(Some(&rig.module)).await.total.tokens_saved,
         20
     );
     assert_eq!(stored(&rig).await?.ok_or("written")?["total"]["events"], 3);
     // Importing again must not double count.
-    assert!(!savings.import(Some(&rig.module), legacy).await);
+    assert!(!savings.import(Some(&rig.module), legacy).await?);
     assert_eq!(savings.stats(Some(&rig.module)).await.total.events, 3);
     Ok(())
 }
@@ -96,5 +96,50 @@ async fn without_a_storage_host_totals_stay_in_memory() -> TestResult {
     savings.record(Some(&rig.module), &req(200, 100)).await;
     assert_eq!(savings.stats(Some(&rig.module)).await.total.events, 1);
     assert!(stored(&rig).await?.is_none());
+    let legacy = SavingsAggregate::default();
+    assert!(
+        savings.import(Some(&rig.module), legacy).await.is_err(),
+        "an import cannot be settled while storage is unreadable"
+    );
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn totals_recorded_before_storage_answers_are_added_to_the_stored_ones() -> TestResult {
+    let mut rig = rig(true).await?;
+    Savings::new()
+        .record(Some(&rig.module), &req(200, 100))
+        .await;
+    // A fresh module whose storage endpoint is not up yet.
+    let mut late = crate::storage::tests::rig(false).await?;
+    late.backend = rig.backend.clone();
+    let savings = Savings::new();
+    savings.record(Some(&late.module), &req(400, 100)).await;
+    assert!(
+        stored(&rig)
+            .await?
+            .is_some_and(|b| b["total"]["events"] == 1)
+    );
+    late.serve_storage().await?;
+    let merged = savings.stats(Some(&late.module)).await;
+    assert_eq!(merged.total.events, 2);
+    assert_eq!(merged.total.tokens_saved, 100 + 300);
+    assert_eq!(stored(&rig).await?.ok_or("written")?["total"]["events"], 2);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_reset_before_storage_answers_discards_the_stored_totals() -> TestResult {
+    let rig = rig(true).await?;
+    Savings::new()
+        .record(Some(&rig.module), &req(200, 100))
+        .await;
+    let mut late = crate::storage::tests::rig(false).await?;
+    late.backend = rig.backend.clone();
+    let savings = Savings::new();
+    savings.reset(Some(&late.module)).await;
+    late.serve_storage().await?;
+    assert_eq!(savings.stats(Some(&late.module)).await.total.events, 0);
+    assert_eq!(stored(&rig).await?.ok_or("written")?["total"]["events"], 0);
     Ok(())
 }

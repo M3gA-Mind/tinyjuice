@@ -78,7 +78,9 @@ impl Savings {
         let mut state = self.state.lock().await;
         self.load(&mut state, connection).await;
         if !state.loaded {
-            return Err(tinybus::Error::failed("savings storage is not readable yet"));
+            return Err(tinybus::Error::failed(
+                "savings storage is not readable yet",
+            ));
         }
         if self.ledger.stats().total.events != 0 {
             log::debug!("[tinyjuice_module][savings] import skipped: totals exist");
@@ -143,7 +145,12 @@ impl Savings {
         };
         let body = StoredSavings::from_aggregate(&self.ledger.stats(), now_ms());
         if let Err(error) = docs
-            .put_as(SAVINGS_COLLECTION, SAVINGS_DOC_ID, &body, Precondition::None)
+            .put_as(
+                SAVINGS_COLLECTION,
+                SAVINGS_DOC_ID,
+                &body,
+                Precondition::None,
+            )
             .await
         {
             log::debug!("[tinyjuice_module][savings] write failed: {error}");

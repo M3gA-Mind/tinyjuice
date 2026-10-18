@@ -18,7 +18,21 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 pub(crate) struct Rig {
     pub(crate) module: Connection,
     pub(crate) backend: MemoryStorage,
+    host: Connection,
     _served: Option<ServedStorage>,
+}
+
+impl Rig {
+    /// Start serving storage on a rig built without it.
+    pub(crate) async fn serve_storage(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let bound = self.backend.clone();
+        let endpoint = PerCallerEndpoint::new(move |_sender| {
+            let scoped: ScopedStorage = bound.for_scope(&Scope::local()).ok()?;
+            Some(StorageServer::new(scoped))
+        });
+        self._served = Some(serve(&self.host, Arc::new(endpoint)).await?);
+        Ok(())
+    }
 }
 
 pub(crate) async fn rig(serve_storage: bool) -> Result<Rig, Box<dyn std::error::Error>> {
@@ -37,11 +51,10 @@ pub(crate) async fn rig(serve_storage: bool) -> Result<Rig, Box<dyn std::error::
         None
     };
     let module = Connection::connect(bus.connect().await?).await?;
-    // Keep the host connection alive for the life of the broker.
-    std::mem::forget(host);
     Ok(Rig {
         module,
         backend,
+        host,
         _served: served,
     })
 }
