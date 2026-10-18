@@ -70,7 +70,7 @@ async fn detected_kind_routes_to_its_compressor_and_lossy_output_is_recoverable(
         (
             ContentKind::Search,
             (0..120)
-                .map(|i| format!("src/module_{i}.rs:{}:fn matching_result_{i}() {{}}\n", i + 1))
+                .map(|i| format!("src/module.rs:{}:fn matching_result_{i}() {{}}\n", i + 1))
                 .collect::<String>(),
         ),
         (
