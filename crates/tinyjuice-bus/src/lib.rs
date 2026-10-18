@@ -37,7 +37,3 @@ pub use wire::{
 #[cfg(test)]
 #[path = "lib_tests.rs"]
 mod tests;
-
-#[cfg(test)]
-#[path = "wire_tests.rs"]
-mod wire_tests;

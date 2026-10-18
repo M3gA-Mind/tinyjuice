@@ -71,6 +71,10 @@ fn full_profile() -> AgentTokenjuiceCompression {
     AgentTokenjuiceCompression::Full
 }
 
+#[cfg(test)]
+#[path = "wire_tests.rs"]
+mod tests;
+
 /// What the module sends the host's `Generate` member.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

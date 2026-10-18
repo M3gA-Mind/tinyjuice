@@ -273,15 +273,17 @@ tests and host adapters can use `MemoryCcrStore` to assert CCR behavior without
 touching the global cache.
 
 The standalone CLI's `ls`, `cat`, `stats`, and `gc` commands are compiled with
-the opt-in `cli-disk-tier` feature and operate only on an explicit CCR disk tier
-via `--store-dir`; library and hosted module builds do not contain this tier.
-It is a disposable recovery cache, not durable user data. Hosted persistence is
-owned by the host's BlobCcrStore. Existing standalone cache files are not
-imported into hosted storage. The REPL's former `repl_save_dir` text snapshots
-are no longer written; the CCR token and its configured store are authoritative.
-TinyBus contract 3.0 rejects 2.x hosts because the old disk-path request cannot
-express host durability. These commands do not imply access to another process's
-in-memory cache. `cat` supports
+the opt-in `cli-disk-tier` feature; `ls`, `cat`, and `stats` can inspect an
+explicit directory with `--store-dir`. `gc` and normal CLI or hook compression
+runs use `TINYJUICE_CCR_DIR`, falling back to the platform cache directory.
+Library and hosted module builds do not contain this tier. It is a disposable
+recovery cache, not durable user data. Hosted persistence is owned by the host's
+BlobCcrStore. Existing standalone cache files are not imported into hosted
+storage. The REPL's former `repl_save_dir` text snapshots are no longer written;
+the CCR token and its configured store are authoritative. TinyBus contract 3.0
+rejects 2.x hosts because the old disk-path request cannot express host
+durability. These commands do not imply access to another process's in-memory
+cache. `cat` supports
 `--lines START:END` and `--bytes START:END` ranges.
 `stats` reports metadata-only counts and byte totals without reading token
 content.
