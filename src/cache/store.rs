@@ -16,28 +16,11 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant};
-#[cfg(feature = "cli-disk-tier")]
-use std::{
-    io,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
-    time::SystemTime,
-};
 
 /// Default max originals retained (entry-count cap).
 pub const DEFAULT_MAX_ENTRIES: usize = 256;
 /// Default total-bytes cap (64 MiB) so a few huge originals can't blow memory.
 pub const DEFAULT_MAX_BYTES: usize = 64 * 1024 * 1024;
-/// Default total-bytes cap for the on-disk tier (matches the in-memory cap).
-#[cfg(feature = "cli-disk-tier")]
-pub const DEFAULT_DISK_MAX_BYTES: u64 = DEFAULT_MAX_BYTES as u64;
-/// Enforce the disk byte cap on every Nth disk write instead of every write.
-/// A full directory scan is O(entries); running it per offload would tax the
-/// hook hot path, so it is amortized here and available on demand via
-/// [`gc_disk_tier`] / the `tinyjuice gc` command. Worst-case overshoot between
-/// enforcement points is bounded by N × the largest single payload.
-#[cfg(feature = "cli-disk-tier")]
-const DISK_CAP_ENFORCE_EVERY: u64 = 128;
 /// Bytes of the SHA-256 digest used for the key (→ 32 hex chars). Wide enough
 /// that collisions are infeasible and the hash doubles as an unguessable
 /// capability token.
@@ -185,52 +168,12 @@ fn limits() -> &'static RwLock<Limits> {
     LIMITS.get_or_init(|| RwLock::new(Limits::default()))
 }
 
-/// Optional standalone CLI disk-tier root. Hosts use `set_durable_tier` instead.
-#[cfg(feature = "cli-disk-tier")]
-fn disk_root() -> &'static RwLock<Option<PathBuf>> {
-    static ROOT: OnceLock<RwLock<Option<PathBuf>>> = OnceLock::new();
-    ROOT.get_or_init(|| RwLock::new(None))
-}
-
 /// Configure the cache limits (called once from config at startup).
 pub fn configure(max_entries: usize, max_bytes: usize, ttl_secs: Option<u64>) {
     let mut l = limits().write().unwrap_or_else(|p| p.into_inner());
     l.max_entries = max_entries.max(1);
     l.max_bytes = max_bytes.max(1);
     l.ttl = ttl_secs.map(Duration::from_secs);
-}
-
-/// Total-bytes budget for the on-disk tier. `None` ⇒ unbounded (gc-only).
-#[cfg(feature = "cli-disk-tier")]
-fn disk_cap() -> &'static RwLock<Option<u64>> {
-    static CAP: OnceLock<RwLock<Option<u64>>> = OnceLock::new();
-    CAP.get_or_init(|| RwLock::new(Some(DEFAULT_DISK_MAX_BYTES)))
-}
-
-/// Configure the disk-tier total-bytes cap enforced (amortized) on offload.
-/// `None` disables write-time enforcement; explicit gc still applies whatever
-/// budget its caller passes.
-#[cfg(feature = "cli-disk-tier")]
-pub fn configure_disk_cap(max_bytes: Option<u64>) {
-    *disk_cap().write().unwrap_or_else(|p| p.into_inner()) = max_bytes;
-}
-
-/// Enable the on-disk tier rooted at `root` (e.g. `<workspace>/.tinyjuice/ccr`).
-/// Best-effort: directory creation failures disable the tier silently.
-#[cfg(feature = "cli-disk-tier")]
-pub fn enable_disk_tier(root: PathBuf) {
-    if std::fs::create_dir_all(&root).is_ok() {
-        *disk_root().write().unwrap_or_else(|p| p.into_inner()) = Some(root);
-    } else {
-        log::warn!("[tinyjuice][ccr] could not create disk tier at {root:?}");
-    }
-}
-
-/// Turn the on-disk tier off (e.g. when the setting is toggled off at runtime).
-/// New offloads stop writing to disk; already-written files are left in place.
-#[cfg(feature = "cli-disk-tier")]
-pub fn disable_disk_tier() {
-    *disk_root().write().unwrap_or_else(|p| p.into_inner()) = None;
 }
 
 /// The host-provided durable tier, tried after memory. See [`set_durable_tier`].
@@ -368,33 +311,7 @@ pub fn offload_checked_with_hash(hash: &str, content: &str) -> bool {
     #[cfg(not(feature = "cli-disk-tier"))]
     let disk_retained = false;
     #[cfg(feature = "cli-disk-tier")]
-    let ttl = limits().read().unwrap_or_else(|p| p.into_inner()).ttl;
-    #[cfg(feature = "cli-disk-tier")]
-    if let Some(root) = disk_root()
-        .read()
-        .unwrap_or_else(|p| p.into_inner())
-        .clone()
-    {
-        let path = root.join(hash);
-        match std::fs::write(&path, content) {
-            Ok(()) => disk_retained = true,
-            Err(e) => log::debug!("[tinyjuice][ccr] disk write failed for {hash}: {e}"),
-        }
-        // Amortized disk-cap enforcement: every Nth successful write, sweep the
-        // tier down to the configured budget (see DISK_CAP_ENFORCE_EVERY). The
-        // just-written entry is protected so a footer we are about to emit
-        // can't dangle.
-        if disk_retained {
-            static DISK_WRITES: AtomicU64 = AtomicU64::new(0);
-            let n = DISK_WRITES.fetch_add(1, Ordering::Relaxed) + 1;
-            if n.is_multiple_of(DISK_CAP_ENFORCE_EVERY)
-                && let Some(cap) = *disk_cap().read().unwrap_or_else(|p| p.into_inner())
-                && let Err(e) = gc_dir_protecting(&root, ttl, Some(cap), Some(hash))
-            {
-                log::debug!("[tinyjuice][ccr] disk-cap sweep failed: {e}");
-            }
-        }
-    }
+    let disk_retained = crate::cache::disk_tier::put(hash, content);
     // Mirror to the host-provided durable tier (best-effort).
     let durable = durable_tier()
         .read()
@@ -415,117 +332,10 @@ pub fn offload_checked_with_hash(hash: &str, content: &str) -> bool {
     mem_retained || disk_retained || durable_retained
 }
 
-/// Result of a disk-tier garbage-collection sweep.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-#[cfg(feature = "cli-disk-tier")]
-pub struct GcStats {
-    /// Entries deleted (expired or evicted for budget).
-    pub removed: usize,
-    /// Bytes reclaimed by the deletions.
-    pub freed_bytes: u64,
-    /// Entries left in place after the sweep.
-    pub kept: usize,
-    /// Bytes still held by the kept entries.
-    pub kept_bytes: u64,
-}
-
-/// Sweep the *configured* disk tier: delete entries older than `ttl` and, if
-/// the remainder exceeds `max_bytes`, evict oldest-by-mtime until under budget.
-/// No disk tier configured ⇒ `Ok(GcStats::default())`.
-#[cfg(feature = "cli-disk-tier")]
-pub fn gc_disk_tier(ttl: Option<Duration>, max_bytes: Option<u64>) -> io::Result<GcStats> {
-    let Some(root) = disk_root()
-        .read()
-        .unwrap_or_else(|p| p.into_inner())
-        .clone()
-    else {
-        return Ok(GcStats::default());
-    };
-    gc_disk_dir(&root, ttl, max_bytes)
-}
-
-/// Sweep an explicit disk-tier directory (see [`gc_disk_tier`]). Only files
-/// whose names are well-formed CCR tokens are considered — anything else in
-/// the directory is left alone. A missing directory is an empty sweep.
-#[cfg(feature = "cli-disk-tier")]
-pub fn gc_disk_dir(
-    root: &Path,
-    ttl: Option<Duration>,
-    max_bytes: Option<u64>,
-) -> io::Result<GcStats> {
-    gc_dir_protecting(root, ttl, max_bytes, None)
-}
-
-#[cfg(feature = "cli-disk-tier")]
-fn gc_dir_protecting(
-    root: &Path,
-    ttl: Option<Duration>,
-    max_bytes: Option<u64>,
-    protect: Option<&str>,
-) -> io::Result<GcStats> {
-    let entries = match std::fs::read_dir(root) {
-        Ok(entries) => entries,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(GcStats::default()),
-        Err(e) => return Err(e),
-    };
-
-    let mut stats = GcStats::default();
-    // (path, bytes, mtime) for every valid CCR entry, oldest first.
-    let mut kept: Vec<(PathBuf, u64, SystemTime)> = Vec::new();
-    let now = SystemTime::now();
-    for entry in entries {
-        let entry = entry?;
-        let name = entry.file_name();
-        let Some(name) = name.to_str() else { continue };
-        if !is_valid_token(name) {
-            continue;
-        }
-        let Ok(meta) = entry.metadata() else { continue };
-        if !meta.is_file() {
-            continue;
-        }
-        let bytes = meta.len();
-        let mtime = meta.modified().unwrap_or(now);
-        let expired = ttl.is_some_and(|ttl| {
-            now.duration_since(mtime)
-                .is_ok_and(|elapsed| elapsed >= ttl)
-        });
-        if expired && std::fs::remove_file(entry.path()).is_ok() {
-            stats.removed += 1;
-            stats.freed_bytes += bytes;
-        } else {
-            kept.push((entry.path(), bytes, mtime));
-        }
-    }
-
-    let mut total: u64 = kept.iter().map(|(_, bytes, _)| bytes).sum();
-    if let Some(cap) = max_bytes {
-        kept.sort_by_key(|(_, _, mtime)| *mtime);
-        let mut idx = 0;
-        while total > cap && idx < kept.len() {
-            let (path, bytes, _) = &kept[idx];
-            // Never evict the entry an in-flight offload just wrote — its
-            // recovery footer is about to be emitted and must not dangle.
-            let protected = protect.is_some_and(|p| path.file_name().is_some_and(|name| name == p));
-            if !protected && std::fs::remove_file(path).is_ok() {
-                stats.removed += 1;
-                stats.freed_bytes += bytes;
-                total -= bytes;
-                kept.remove(idx);
-            } else {
-                idx += 1;
-            }
-        }
-    }
-    stats.kept = kept.len();
-    stats.kept_bytes = total;
-    Ok(stats)
-}
-
 /// True if `hash` is a well-formed CCR token (exactly the generated hex digest).
 /// Tokens come from agent-controlled tool args. Reject anything other than the
 /// fixed hex shape (e.g. `../../state/config.toml`) before looking up any store.
-fn is_valid_token(hash: &str) -> bool {
+pub(super) fn is_valid_token(hash: &str) -> bool {
     hash.len() == HASH_BYTES * 2 && hash.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
@@ -560,36 +370,11 @@ pub fn retrieve(hash: &str) -> Option<String> {
     }
     // Disk fallback, available only to standalone CLI builds.
     #[cfg(feature = "cli-disk-tier")]
-    let root = disk_root()
-        .read()
-        .unwrap_or_else(|p| p.into_inner())
-        .clone()?;
-    #[cfg(feature = "cli-disk-tier")]
-    let path = root.join(hash);
-    #[cfg(feature = "cli-disk-tier")]
-    if disk_entry_expired(&path, ttl) {
-        log::debug!("[tinyjuice][ccr] disk entry expired for {hash}");
-        let _ = std::fs::remove_file(&path);
-        return None;
+    if let Some(found) = crate::cache::disk_tier::get(hash, ttl) {
+        return Some(found);
     }
-    #[cfg(feature = "cli-disk-tier")]
-    return std::fs::read_to_string(path).ok();
     #[cfg(not(feature = "cli-disk-tier"))]
     None
-}
-
-#[cfg(feature = "cli-disk-tier")]
-fn disk_entry_expired(path: &Path, ttl: Option<Duration>) -> bool {
-    let Some(ttl) = ttl else {
-        return false;
-    };
-    let Ok(metadata) = std::fs::metadata(path) else {
-        return false;
-    };
-    let Ok(modified) = metadata.modified() else {
-        return false;
-    };
-    modified.elapsed().is_ok_and(|elapsed| elapsed >= ttl)
 }
 
 /// The span/unit for a ranged retrieval.

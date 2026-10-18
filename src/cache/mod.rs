@@ -2,6 +2,8 @@
 
 pub mod marker;
 pub mod store;
+#[cfg(feature = "cli-disk-tier")]
+mod disk_tier;
 
 pub use marker::{
     LEGACY_RETRIEVE_TOOL_NAME, NEVER_COMPACT_TOOLS, RECOVERY_TOOL_NAMES, RETRIEVE_TOOL_NAME,
@@ -14,7 +16,7 @@ pub use store::{
 };
 
 #[cfg(feature = "cli-disk-tier")]
-pub use store::{
+pub use disk_tier::{
     DEFAULT_DISK_MAX_BYTES, GcStats, configure_disk_cap, disable_disk_tier, enable_disk_tier,
     gc_disk_dir, gc_disk_tier,
 };
