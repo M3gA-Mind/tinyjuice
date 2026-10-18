@@ -36,10 +36,10 @@ impl Compression {
             request.max_cache_bytes,
             request.ccr_ttl_secs,
         );
-        // `disk_tier_root` is the host's "keep originals past memory" switch.
-        // Off clears the durable tier; on moves it onto the host's storage.
-        let durable = match (request.disk_tier_root, self.connection.clone()) {
-            (Some(_), Some(connection)) => {
+        // Durable CCR is backed by host storage. The module never receives or
+        // writes a filesystem path for its cache.
+        let durable = match (request.ccr_durable, self.connection.clone()) {
+            (true, Some(connection)) => {
                 crate::storage::durable_tier(
                     connection,
                     request.ccr_ttl_secs.map(std::time::Duration::from_secs),

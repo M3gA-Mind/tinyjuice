@@ -117,7 +117,7 @@ fn install_request(durable: bool) -> tinyjuice_bus::wire::InstallRequest {
         max_cache_entries: 8,
         max_cache_bytes: 1024 * 1024,
         ccr_ttl_secs: Some(600),
-        disk_tier_root: durable.then(|| "ignored-host-path".to_string()),
+        ccr_durable: durable,
     }
 }
 
