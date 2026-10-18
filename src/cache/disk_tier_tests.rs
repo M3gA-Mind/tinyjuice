@@ -176,7 +176,10 @@ fn periodic_write_sweep_removes_expired_entries() {
     // A full interval guarantees that the process-wide write counter reaches a
     // sweep regardless of where other tests left it.
     for index in 0..DISK_CAP_ENFORCE_EVERY {
-        put(&format!("{:032x}", index + 1), "fresh original");
+        assert!(
+            put(&format!("{:032x}", index + 1), "fresh original"),
+            "fixture write {index} must succeed"
+        );
     }
 
     let expired_remains = expired.exists();
