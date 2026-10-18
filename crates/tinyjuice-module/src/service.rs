@@ -358,7 +358,6 @@ mod tests;
 
 /// One savings ledger per loaded module, shared by its service calls.
 fn savings() -> &'static crate::savings_store::Savings {
-    static SAVINGS: std::sync::OnceLock<crate::savings_store::Savings> =
-        std::sync::OnceLock::new();
+    static SAVINGS: std::sync::OnceLock<crate::savings_store::Savings> = std::sync::OnceLock::new();
     SAVINGS.get_or_init(crate::savings_store::Savings::new)
 }

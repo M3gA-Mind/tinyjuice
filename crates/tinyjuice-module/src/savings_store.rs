@@ -112,7 +112,12 @@ impl Savings {
         };
         let body = StoredSavings::from_aggregate(&self.ledger.stats(), now_ms());
         if let Err(error) = docs
-            .put_as(SAVINGS_COLLECTION, SAVINGS_DOC_ID, &body, Precondition::None)
+            .put_as(
+                SAVINGS_COLLECTION,
+                SAVINGS_DOC_ID,
+                &body,
+                Precondition::None,
+            )
             .await
         {
             log::debug!("[tinyjuice_module][savings] write failed: {error}");

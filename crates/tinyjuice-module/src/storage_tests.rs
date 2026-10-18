@@ -15,13 +15,13 @@ pub(crate) static INSTALL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_ne
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-struct Rig {
-    module: Connection,
-    backend: MemoryStorage,
+pub(crate) struct Rig {
+    pub(crate) module: Connection,
+    pub(crate) backend: MemoryStorage,
     _served: Option<ServedStorage>,
 }
 
-async fn rig(serve_storage: bool) -> Result<Rig, Box<dyn std::error::Error>> {
+pub(crate) async fn rig(serve_storage: bool) -> Result<Rig, Box<dyn std::error::Error>> {
     let bus = MemoryBus::new();
     Broker::new().spawn(bus.clone());
     let backend = MemoryStorage::new();

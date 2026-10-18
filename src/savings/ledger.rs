@@ -30,7 +30,10 @@ impl SavingsLedger {
 
     /// Replaces all totals, for restoring persisted state.
     pub fn replace(&self, aggregate: SavingsAggregate) {
-        self.state.lock().unwrap_or_else(|p| p.into_inner()).aggregate = aggregate;
+        self.state
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .aggregate = aggregate;
     }
 
     /// Records a strictly smaller compaction into the in-memory totals.

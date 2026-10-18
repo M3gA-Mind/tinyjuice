@@ -4,8 +4,8 @@
 //! crate is the separately shipped native module that keeps the compression
 //! engine and its dependency tree out of an embedding host.
 
-mod service;
 mod savings_store;
+mod service;
 mod storage;
 
 /// Entry points for hosts that link `TinyJuice` into their own executable.

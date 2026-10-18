@@ -125,9 +125,8 @@ impl StoredSavings {
     /// The wire aggregate this body holds.
     #[must_use]
     pub fn into_aggregate(self) -> SavingsAggregate {
-        let map = |m: HashMap<String, StoredBucket>| {
-            m.into_iter().map(|(k, v)| (k, v.into())).collect()
-        };
+        let map =
+            |m: HashMap<String, StoredBucket>| m.into_iter().map(|(k, v)| (k, v.into())).collect();
         SavingsAggregate {
             total: self.total.into(),
             by_model: map(self.by_model),
