@@ -11,6 +11,10 @@ fn the_contract_accepts_its_own_version_and_newer_minors() {
         !is_compatible((2, 0)),
         "savings members require contract 2.1"
     );
+    assert!(
+        !is_compatible((2, 2)),
+        "ImportSavings and the juice.savings collection require contract 2.3"
+    );
 }
 
 #[test]
