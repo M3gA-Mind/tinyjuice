@@ -64,7 +64,7 @@ async fn detected_kind_routes_to_its_compressor_and_lossy_output_is_recoverable(
         (
             ContentKind::Log,
             (0..120)
-                .map(|i| format!("2025-01-01T00:00:{i:02}Z ERROR worker-{i} failed request with retryable timeout\n"))
+                .map(|i| format!("ERROR worker-{i} failed request with retryable timeout after repeated attempts\n"))
                 .collect::<String>(),
         ),
         (
