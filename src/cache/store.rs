@@ -185,7 +185,7 @@ fn limits() -> &'static RwLock<Limits> {
     LIMITS.get_or_init(|| RwLock::new(Limits::default()))
 }
 
-/// Optional on-disk tier root (under the core's workspace). `None` ⇒ in-memory only.
+/// Optional standalone CLI disk-tier root. Hosts use `set_durable_tier` instead.
 #[cfg(feature = "cli-disk-tier")]
 fn disk_root() -> &'static RwLock<Option<PathBuf>> {
     static ROOT: OnceLock<RwLock<Option<PathBuf>>> = OnceLock::new();
@@ -269,7 +269,7 @@ impl Inner {
     /// original larger than `max_bytes` cannot be retained in memory under the
     /// byte cap — eviction would immediately drop the just-inserted entry — so
     /// `false` is returned and the caller must not advertise it as recoverable
-    /// (the router declines lossy compaction or relies on the disk tier).
+    /// (the router declines lossy compaction unless a durable store retains it).
     fn insert(
         &mut self,
         hash: String,
@@ -334,7 +334,7 @@ pub fn offload(content: &str) -> String {
 
 /// Stash `content`, returning `(hash, retained)`. `retained` is `false` only
 /// when the original could be kept neither in memory (it exceeds the byte cap)
-/// nor on the disk tier — in which case the caller must NOT advertise it as
+/// nor in a durable host store — in which case the caller must NOT advertise it as
 /// recoverable. Idempotent for identical content.
 pub fn offload_checked(content: &str) -> (String, bool) {
     let hash = short_hash(content);
@@ -359,7 +359,7 @@ pub fn offload_checked_with_hash(hash: &str, content: &str) -> bool {
         max_bytes,
     );
 
-    // Mirror to the disk tier when enabled (best-effort). A successful disk
+    // Mirror to the standalone CLI disk tier when enabled (best-effort). A successful write
     // write keeps the original recoverable even when it was too big for memory.
     // Rewriting an existing hash intentionally refreshes the file mtime, which
     // is the TTL clock for disk-backed CCR entries.
@@ -395,7 +395,7 @@ pub fn offload_checked_with_hash(hash: &str, content: &str) -> bool {
             }
         }
     }
-    // Mirror to the host-provided durable tier (best-effort, like the disk tier).
+    // Mirror to the host-provided durable tier (best-effort).
     let durable = durable_tier()
         .read()
         .unwrap_or_else(|p| p.into_inner())
@@ -523,19 +523,17 @@ fn gc_dir_protecting(
 }
 
 /// True if `hash` is a well-formed CCR token (exactly the generated hex digest).
-/// Tokens come from agent-controlled tool args, and on a disk-tier miss they are
-/// joined onto the CCR root — so anything other than the fixed hex shape (e.g.
-/// `../../state/config.toml`) must be rejected before touching the filesystem to
-/// prevent path traversal / arbitrary file reads through the recovery tool.
+/// Tokens come from agent-controlled tool args. Reject anything other than the
+/// fixed hex shape (e.g. `../../state/config.toml`) before looking up any store.
 fn is_valid_token(hash: &str) -> bool {
     hash.len() == HASH_BYTES * 2 && hash.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 /// Retrieve a previously-offloaded original by hash, if still available
-/// (memory first, then the disk tier). Honours the TTL for both tiers.
+/// (memory first, then a host durable store or the standalone CLI disk tier).
+/// Honours the in-memory TTL; durable stores own their own expiry.
 pub fn retrieve(hash: &str) -> Option<String> {
-    // Reject anything that isn't the generated token shape up front — guards the
-    // disk-tier `root.join(hash)` below against path traversal.
+    // Reject anything that isn't the generated token shape up front.
     if !is_valid_token(hash) {
         return None;
     }
@@ -546,7 +544,7 @@ pub fn retrieve(hash: &str) -> Option<String> {
             if ttl.is_none_or(|t| entry.created.elapsed() < t) {
                 return Some(entry.content.clone());
             }
-            // Expired — drop it and fall through to disk.
+            // Expired — drop it and fall through to durable storage.
             if let Some(e) = inner.map.remove(hash) {
                 inner.total_bytes = inner.total_bytes.saturating_sub(e.content.len());
             }

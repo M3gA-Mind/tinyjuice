@@ -39,7 +39,7 @@ fn options_cell() -> &'static RwLock<CompressOptions> {
 }
 
 /// Install the runtime [`CompressOptions`] (called once from config at startup).
-/// Also configures the CCR cache limits/disk tier indirectly via the caller.
+/// Also configures the in-memory CCR limits; hosts install durable stores separately.
 pub fn configure(opts: CompressOptions) {
     *options_cell().write().unwrap_or_else(|p| p.into_inner()) = opts;
 }

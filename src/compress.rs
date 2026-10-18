@@ -351,7 +351,7 @@ pub async fn route_with_store_report_shell_policy(
         let put = store.put(content);
         if !put.retained() {
             // The original is too large to keep in memory (over the byte cap)
-            // and the disk tier isn't on, so it can't be recovered. A lossy view
+            // and no durable store retained it, so it can't be recovered. A lossy view
             // would be irreversible — decline it. A lossless reformat is still
             // safe to return, just without a (dangling) recovery footer.
             if out.lossy {
