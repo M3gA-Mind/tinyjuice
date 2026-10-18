@@ -120,7 +120,7 @@ async fn rejected_handle_view_leaves_no_saved_file() {
         argv: None,
         original_bytes: content.len(),
     };
-    let (out, _) = route_with_store_report(input, &opts, &store).await;
+    let (_out, _) = route_with_store_report(input, &opts, &store).await;
     let leftover = std::fs::read_dir(&dir).map(|d| d.count()).unwrap_or(0);
     assert_eq!(leftover, 0, "unreferenced copy left behind");
     let _ = std::fs::remove_dir_all(&dir);

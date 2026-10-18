@@ -9,10 +9,8 @@
 //!
 //! Process-global and bounded by **both** an entry count and a total byte cap,
 //! with an optional TTL. Keyed by content hash, so re-offloading identical
-//! content is idempotent. An optional **disk tier** (configured from the core's
-//! `workspace_dir`) persists originals across the session so retrieval can
-//! survive memory eviction; the agent itself never writes there — only the core
-//! does, through this module.
+//! content is idempotent. Hosted persistence is supplied through [`CcrStore`];
+//! only standalone CLI builds can opt into a filesystem tier.
 
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, VecDeque};
@@ -365,7 +363,10 @@ pub fn offload_checked_with_hash(hash: &str, content: &str) -> bool {
     // write keeps the original recoverable even when it was too big for memory.
     // Rewriting an existing hash intentionally refreshes the file mtime, which
     // is the TTL clock for disk-backed CCR entries.
+    #[cfg(feature = "cli-disk-tier")]
     let mut disk_retained = false;
+    #[cfg(not(feature = "cli-disk-tier"))]
+    let disk_retained = false;
     #[cfg(feature = "cli-disk-tier")]
     let ttl = limits().read().unwrap_or_else(|p| p.into_inner()).ttl;
     #[cfg(feature = "cli-disk-tier")]
