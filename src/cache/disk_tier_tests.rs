@@ -178,10 +178,7 @@ fn periodic_write_sweep_removes_expired_entries() {
     for index in 0..DISK_CAP_ENFORCE_EVERY {
         let content = format!("fresh original {index}");
         let (_, retained) = crate::cache::offload_checked(&content);
-        assert!(
-            retained,
-            "fixture write {index} must succeed"
-        );
+        assert!(retained, "fixture write {index} must succeed");
     }
 
     let expired_remains = expired.exists();
