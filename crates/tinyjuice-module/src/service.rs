@@ -35,9 +35,6 @@ impl Compression {
             request.max_cache_entries,
             request.max_cache_bytes,
             request.ccr_ttl_secs,
-            // The module writes no files: the durable tier is the host's blob
-            // port, never a directory the host names.
-            None,
         );
         // `disk_tier_root` is the host's "keep originals past memory" switch.
         // Off clears the durable tier; on moves it onto the host's storage.
