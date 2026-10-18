@@ -1,7 +1,7 @@
 //! Model-attributed savings aggregation, in memory.
 //!
 //! Durability is the caller's: the module keeps the aggregate in the host's
-//! document store (`juice.savings`), loading it with [`SavingsLedger::replace`].
+//! document store (`juice.savings`), loading it with `SavingsLedger::replace`.
 
 use std::sync::Mutex;
 
