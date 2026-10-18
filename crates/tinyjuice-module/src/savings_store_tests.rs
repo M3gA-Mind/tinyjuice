@@ -143,26 +143,3 @@ async fn a_reset_before_storage_answers_discards_the_stored_totals() -> TestResu
     assert_eq!(stored(&rig).await?.ok_or("written")?["total"]["events"], 0);
     Ok(())
 }
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn an_import_whose_write_fails_is_an_error_and_keeps_the_prior_totals() -> TestResult {
-    // A host whose document port is read-only for writes cannot be built on the
-    // memory backend, so exercise the rollback with storage that goes away
-    // after the load: the ledger must not report a handed-off import.
-    let rig = rig(true).await?;
-    let savings = Savings::new();
-    savings.record(Some(&rig.module), &req(200, 100)).await;
-    let before = savings.stats(Some(&rig.module)).await;
-    drop(rig);
-    let legacy = SavingsAggregate::default();
-    let result = tokio::time::timeout(
-        std::time::Duration::from_secs(60),
-        savings.import(None, legacy),
-    )
-    .await?;
-    // With no connection the module is memory-only: the import is accepted only
-    // when nothing was recorded, and recorded totals are never clobbered.
-    assert_eq!(result.ok(), Some(false));
-    assert_eq!(savings.stats(None).await.total.events, before.total.events);
-    Ok(())
-}

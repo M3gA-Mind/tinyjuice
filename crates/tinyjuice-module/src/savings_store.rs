@@ -164,7 +164,12 @@ impl Savings {
         };
         let body = StoredSavings::from_aggregate(&self.ledger.stats(), now_ms());
         match docs
-            .put_as(SAVINGS_COLLECTION, SAVINGS_DOC_ID, &body, Precondition::None)
+            .put_as(
+                SAVINGS_COLLECTION,
+                SAVINGS_DOC_ID,
+                &body,
+                Precondition::None,
+            )
             .await
         {
             Ok(_) => true,
