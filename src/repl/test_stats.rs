@@ -87,8 +87,14 @@ async fn router_repl_handle_keeps_original_only_in_ccr() {
     let stats = out.stats.expect("stats");
     assert!(out.body.starts_with(&format!("[{stats}]")));
     assert!(out.body.contains(&content[..200]), "head snippet missing");
-    assert!(!dir.exists(), "legacy save path must not write the original");
-    assert_eq!(store.get(out.ccr_token.as_deref().unwrap()).as_deref(), Some(content.as_str()));
+    assert!(
+        !dir.exists(),
+        "legacy save path must not write the original"
+    );
+    assert_eq!(
+        store.get(out.ccr_token.as_deref().unwrap()).as_deref(),
+        Some(content.as_str())
+    );
 }
 
 #[tokio::test]
