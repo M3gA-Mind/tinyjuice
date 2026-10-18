@@ -1,7 +1,7 @@
 use super::*;
 use crate::storage::tests::rig;
 use tinyjuice_bus::savings::SavingsBucket;
-use tinystoragedrivers_core::Scope;
+use tinystoragedrivers_core::{Scope, StorageBackend};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
