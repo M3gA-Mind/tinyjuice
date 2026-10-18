@@ -291,9 +291,9 @@ pub fn offload_checked(content: &str) -> (String, bool) {
 /// Returns whether the original was retained (memory or disk).
 pub fn offload_checked_with_hash(hash: &str, content: &str) -> bool {
     debug_assert_eq!(hash, short_hash(content), "hash must match content");
-    let (max_entries, max_bytes) = {
+    let (max_entries, max_bytes, ttl) = {
         let l = limits().read().unwrap_or_else(|p| p.into_inner());
-        (l.max_entries, l.max_bytes)
+        (l.max_entries, l.max_bytes, l.ttl)
     };
     let mem_retained = global().lock().unwrap_or_else(|p| p.into_inner()).insert(
         hash.to_string(),
@@ -307,9 +307,11 @@ pub fn offload_checked_with_hash(hash: &str, content: &str) -> bool {
     // Rewriting an existing hash intentionally refreshes the file mtime, which
     // is the TTL clock for disk-backed CCR entries.
     #[cfg(feature = "cli-disk-tier")]
-    let disk_retained = crate::cache::disk_tier::put(hash, content);
+    let disk_retained = crate::cache::disk_tier::put(hash, content, ttl);
     #[cfg(not(feature = "cli-disk-tier"))]
     let disk_retained = false;
+    #[cfg(not(feature = "cli-disk-tier"))]
+    let _ = ttl;
     // Mirror to the host-provided durable tier (best-effort).
     let durable = durable_tier()
         .read()

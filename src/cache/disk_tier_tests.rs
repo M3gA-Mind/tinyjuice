@@ -176,8 +176,10 @@ fn periodic_write_sweep_removes_expired_entries() {
     // A full interval guarantees that the process-wide write counter reaches a
     // sweep regardless of where other tests left it.
     for index in 0..DISK_CAP_ENFORCE_EVERY {
+        let content = format!("fresh original {index}");
+        let (_, retained) = crate::cache::offload_checked(&content);
         assert!(
-            put(&format!("{:032x}", index + 1), "fresh original"),
+            retained,
             "fixture write {index} must succeed"
         );
     }

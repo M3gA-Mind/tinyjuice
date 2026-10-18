@@ -50,7 +50,7 @@ pub struct GcStats {
 }
 
 /// Store an original in the configured CLI disk tier.
-pub(super) fn put(token: &str, content: &str) -> bool {
+pub(super) fn put(token: &str, content: &str, ttl: Option<Duration>) -> bool {
     let Some(root) = root().read().unwrap_or_else(|p| p.into_inner()).clone() else {
         return false;
     };
@@ -59,11 +59,13 @@ pub(super) fn put(token: &str, content: &str) -> bool {
     }
     static WRITES: AtomicU64 = AtomicU64::new(0);
     let n = WRITES.fetch_add(1, Ordering::Relaxed) + 1;
-    if n.is_multiple_of(DISK_CAP_ENFORCE_EVERY)
-        && let Some(max_bytes) = *cap().read().unwrap_or_else(|p| p.into_inner())
-        && let Err(error) = gc_dir_protecting(&root, None, Some(max_bytes), Some(token))
-    {
-        log::debug!("[tinyjuice][ccr] disk-cap sweep failed: {error}");
+    if n.is_multiple_of(DISK_CAP_ENFORCE_EVERY) {
+        let max_bytes = *cap().read().unwrap_or_else(|p| p.into_inner());
+        if (ttl.is_some() || max_bytes.is_some())
+            && let Err(error) = gc_dir_protecting(&root, ttl, max_bytes, Some(token))
+        {
+            log::debug!("[tinyjuice][ccr] disk-tier sweep failed: {error}");
+        }
     }
     true
 }
