@@ -153,6 +153,9 @@ fn memory_store_rejects_malformed_tokens() {
 #[test]
 #[cfg(feature = "cli-disk-tier")]
 fn disk_tier_survives_memory_miss() {
+    let _guard = crate::cache::DISK_TIER_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let dir = std::env::temp_dir().join(format!("tj-ccr-{}", short_hash("disk-test-seed")));
     let _ = std::fs::remove_dir_all(&dir);
     enable_disk_tier(dir.clone());

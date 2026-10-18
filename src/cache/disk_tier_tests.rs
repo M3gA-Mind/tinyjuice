@@ -136,6 +136,9 @@ fn configured_gc_sweeps_the_selected_directory() {
 
 #[test]
 fn enabling_tier_with_a_file_as_root_is_best_effort() {
+    let _guard = crate::cache::DISK_TIER_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("not-a-directory");
     std::fs::write(&file, "keep this file").unwrap();
@@ -150,6 +153,33 @@ fn enabling_tier_with_a_file_as_root_is_best_effort() {
         memory.get(stored.token()).as_deref(),
         Some("memory remains available")
     );
+}
+
+#[test]
+fn periodic_write_sweep_removes_expired_entries() {
+    let _guard = crate::cache::DISK_TIER_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let dir = tempfile::tempdir().unwrap();
+    enable_disk_tier(dir.path().to_path_buf());
+    crate::cache::configure(usize::MAX, usize::MAX, Some(1));
+    configure_disk_cap(Some(DEFAULT_DISK_MAX_BYTES));
+
+    let expired = write_aged(dir.path(), &token('a'), 10, Duration::from_secs(60));
+    // A full interval guarantees that the process-wide write counter reaches a
+    // sweep regardless of where other tests left it.
+    for index in 0..DISK_CAP_ENFORCE_EVERY {
+        put(&format!("{:032x}", index + 1), "fresh original");
+    }
+
+    assert!(!expired.exists(), "periodic sweep must enforce the configured TTL");
+    disable_disk_tier();
+    crate::cache::configure(
+        crate::cache::DEFAULT_MAX_ENTRIES,
+        crate::cache::DEFAULT_MAX_BYTES,
+        None,
+    );
+    configure_disk_cap(Some(DEFAULT_DISK_MAX_BYTES));
 }
 
 #[test]
@@ -176,6 +206,9 @@ fn garbage_collection_skips_nonentries_and_protects_inflight_original() {
 
 #[test]
 fn global_adapter_supports_ranges_and_unconfigured_disk_gc() {
+    let _guard = crate::cache::DISK_TIER_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let store = GlobalCcrStore;
     let put = store.put("global ranged retrieval fixture\nsecond");
     assert!(put.retained());
