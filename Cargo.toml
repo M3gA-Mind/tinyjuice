@@ -76,10 +76,12 @@ tokio = { version = "1", features = ["macros", "rt", "test-util"] }
 [[bin]]
 name = "tinyjuice"
 path = "src/bin/tinyjuice.rs"
+required-features = ["cli-disk-tier"]
 
 [[bin]]
 name = "tinyjuice-reduce"
 path = "src/main.rs"
+required-features = ["cli-disk-tier"]
 
 [[bench]]
 name = "compression"
@@ -89,6 +91,9 @@ harness = false
 default = ["tinyjuice-treesitter"]
 # Exposes the REPL ops as `tinytools::Tool` impls (see src/repl/tools.rs).
 tinytools = ["dep:tinytools", "dep:anyhow", "jq"]
+# File-backed CCR cache commands for the standalone CLI only. Hosts use their
+# own durable CcrStore implementation through the storage bus.
+cli-disk-tier = []
 # Turn-bound `MlHost.Generate` registry (src/host/generate.rs).
 host = ["dep:anyhow", "dep:uuid"]
 # jq-style queries over JSON outputs (the `jq` REPL op and `juice_jq` tool).

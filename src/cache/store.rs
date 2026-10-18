@@ -16,23 +16,29 @@
 
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, VecDeque};
-use std::io;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
+#[cfg(feature = "cli-disk-tier")]
+use std::{
+    io,
+    path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
+    time::SystemTime,
+};
 
 /// Default max originals retained (entry-count cap).
 pub const DEFAULT_MAX_ENTRIES: usize = 256;
 /// Default total-bytes cap (64 MiB) so a few huge originals can't blow memory.
 pub const DEFAULT_MAX_BYTES: usize = 64 * 1024 * 1024;
 /// Default total-bytes cap for the on-disk tier (matches the in-memory cap).
+#[cfg(feature = "cli-disk-tier")]
 pub const DEFAULT_DISK_MAX_BYTES: u64 = DEFAULT_MAX_BYTES as u64;
 /// Enforce the disk byte cap on every Nth disk write instead of every write.
 /// A full directory scan is O(entries); running it per offload would tax the
 /// hook hot path, so it is amortized here and available on demand via
 /// [`gc_disk_tier`] / the `tinyjuice gc` command. Worst-case overshoot between
 /// enforcement points is bounded by N × the largest single payload.
+#[cfg(feature = "cli-disk-tier")]
 const DISK_CAP_ENFORCE_EVERY: u64 = 128;
 /// Bytes of the SHA-256 digest used for the key (→ 32 hex chars). Wide enough
 /// that collisions are infeasible and the hash doubles as an unguessable
@@ -99,7 +105,6 @@ pub struct MemoryCcrStore {
     max_entries: usize,
     max_bytes: usize,
     ttl: Option<Duration>,
-    disk_root: Option<PathBuf>,
 }
 
 impl Default for MemoryCcrStore {
@@ -115,19 +120,11 @@ impl MemoryCcrStore {
             max_entries: max_entries.max(1),
             max_bytes: max_bytes.max(1),
             ttl: None,
-            disk_root: None,
         }
     }
 
     pub fn with_ttl(mut self, ttl: Option<Duration>) -> Self {
         self.ttl = ttl;
-        self
-    }
-
-    pub fn with_disk_root(mut self, root: PathBuf) -> Self {
-        if std::fs::create_dir_all(&root).is_ok() {
-            self.disk_root = Some(root);
-        }
         self
     }
 
@@ -146,14 +143,7 @@ impl CcrStore for MemoryCcrStore {
             self.max_entries,
             self.max_bytes,
         );
-        let mut disk_retained = false;
-        if let Some(root) = self.disk_root.as_ref() {
-            let path = root.join(&token);
-            if std::fs::write(path, content).is_ok() {
-                disk_retained = true;
-            }
-        }
-        CcrPutResult::new(token, mem_retained || disk_retained)
+        CcrPutResult::new(token, mem_retained)
     }
 
     fn get(&self, token: &str) -> Option<String> {
@@ -171,13 +161,7 @@ impl CcrStore for MemoryCcrStore {
                 }
             }
         }
-        let root = self.disk_root.as_ref()?;
-        let path = root.join(token);
-        if disk_entry_expired(&path, self.ttl) {
-            let _ = std::fs::remove_file(path);
-            return None;
-        }
-        std::fs::read_to_string(path).ok()
+        None
     }
 }
 
@@ -204,6 +188,7 @@ fn limits() -> &'static RwLock<Limits> {
 }
 
 /// Optional on-disk tier root (under the core's workspace). `None` ⇒ in-memory only.
+#[cfg(feature = "cli-disk-tier")]
 fn disk_root() -> &'static RwLock<Option<PathBuf>> {
     static ROOT: OnceLock<RwLock<Option<PathBuf>>> = OnceLock::new();
     ROOT.get_or_init(|| RwLock::new(None))
@@ -226,12 +211,14 @@ fn disk_cap() -> &'static RwLock<Option<u64>> {
 /// Configure the disk-tier total-bytes cap enforced (amortized) on offload.
 /// `None` disables write-time enforcement; explicit gc still applies whatever
 /// budget its caller passes.
+#[cfg(feature = "cli-disk-tier")]
 pub fn configure_disk_cap(max_bytes: Option<u64>) {
     *disk_cap().write().unwrap_or_else(|p| p.into_inner()) = max_bytes;
 }
 
 /// Enable the on-disk tier rooted at `root` (e.g. `<workspace>/.tinyjuice/ccr`).
 /// Best-effort: directory creation failures disable the tier silently.
+#[cfg(feature = "cli-disk-tier")]
 pub fn enable_disk_tier(root: PathBuf) {
     if std::fs::create_dir_all(&root).is_ok() {
         *disk_root().write().unwrap_or_else(|p| p.into_inner()) = Some(root);
@@ -242,6 +229,7 @@ pub fn enable_disk_tier(root: PathBuf) {
 
 /// Turn the on-disk tier off (e.g. when the setting is toggled off at runtime).
 /// New offloads stop writing to disk; already-written files are left in place.
+#[cfg(feature = "cli-disk-tier")]
 pub fn disable_disk_tier() {
     *disk_root().write().unwrap_or_else(|p| p.into_inner()) = None;
 }
