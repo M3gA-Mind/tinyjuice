@@ -38,13 +38,19 @@ const CONNECT_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(5);
 /// The module's savings ledger and its storage.
 pub(crate) struct Savings {
     ledger: SavingsLedger,
+    cooldown: std::time::Duration,
     state: tokio::sync::Mutex<State>,
 }
 
 impl Savings {
     pub(crate) fn new() -> Self {
+        Self::with_cooldown(CONNECT_COOLDOWN)
+    }
+
+    pub(crate) fn with_cooldown(cooldown: std::time::Duration) -> Self {
         Self {
             ledger: SavingsLedger::new(),
+            cooldown,
             state: tokio::sync::Mutex::new(State::default()),
         }
     }
@@ -117,7 +123,7 @@ impl Savings {
         if state.docs.is_none() {
             if state
                 .last_connect_failure
-                .is_some_and(|at| at.elapsed() < CONNECT_COOLDOWN)
+                .is_some_and(|at| at.elapsed() < self.cooldown)
             {
                 return;
             }

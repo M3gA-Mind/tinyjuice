@@ -113,7 +113,7 @@ async fn totals_recorded_before_storage_answers_are_added_to_the_stored_ones() -
     // A fresh module whose storage endpoint is not up yet.
     let mut late = crate::storage::tests::rig(false).await?;
     late.backend = rig.backend.clone();
-    let savings = Savings::new();
+    let savings = Savings::with_cooldown(std::time::Duration::ZERO);
     savings.record(Some(&late.module), &req(400, 100)).await;
     assert!(
         stored(&rig)
@@ -136,10 +136,22 @@ async fn a_reset_before_storage_answers_discards_the_stored_totals() -> TestResu
         .await;
     let mut late = crate::storage::tests::rig(false).await?;
     late.backend = rig.backend.clone();
-    let savings = Savings::new();
+    let savings = Savings::with_cooldown(std::time::Duration::ZERO);
     savings.reset(Some(&late.module)).await;
     late.serve_storage().await?;
     assert_eq!(savings.stats(Some(&late.module)).await.total.events, 0);
     assert_eq!(stored(&rig).await?.ok_or("written")?["total"]["events"], 0);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_host_without_storage_is_not_asked_again_within_the_cooldown() -> TestResult {
+    let mut rig = rig(false).await?;
+    let savings = Savings::new();
+    savings.record(Some(&rig.module), &req(200, 100)).await;
+    rig.serve_storage().await?;
+    // Still inside the cooldown: the late port is not looked up yet.
+    savings.record(Some(&rig.module), &req(200, 100)).await;
+    assert!(stored(&rig).await?.is_none());
     Ok(())
 }
