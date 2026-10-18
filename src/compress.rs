@@ -224,7 +224,6 @@ pub async fn route_with_store_report_shell_policy(
                 kind,
                 opts.chars_per_token,
                 opts.repl_preview_chars,
-                None,
             );
             let text = format!("{body}{footer}");
             if text.len() < original_bytes {
