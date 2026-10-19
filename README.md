@@ -39,6 +39,9 @@ the strict lossless-or-recoverable guarantee (e.g. coding agents on the
 - **OpenHuman-ready boundary** - the core crate avoids OpenHuman runtime
   dependencies; adapters install configuration, ML callbacks, and savings
   recorders from the host side.
+- **Separate host adapters** - `tinyjuice-host` supplies the bus-backed
+  retrieval and REPL tools, turn-bound `MlHost.Generate` tickets, recovery
+  helpers, and summary-focus utilities without linking the compression engine.
 - **No raw-content analytics requirement** - the dashboard consumes metadata,
   token and byte counts, latency, status, and strategy labels, not prompt text.
 
@@ -46,6 +49,11 @@ TinyJuice is designed for the work agents actually do: reading too much,
 searching broadly, running noisy commands, and needing a compact but reversible
 view that keeps failures, anomalies, changed hunks, signatures, and matching
 lines visible.
+
+Hosts use `tinyjuice-bus` for its wire contract and the separate
+`tinyjuice-host` crate for tool adapters. The host crate accepts callbacks for
+module queries and recovery lookups, so the caller retains runtime, workspace,
+and authorization ownership.
 
 ## How It Works
 
