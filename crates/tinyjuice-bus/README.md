@@ -29,3 +29,9 @@ See [the module specification](../../docs/specs/tinybus-module.md) for request
 examples, operation tags/defaults, reply shapes, and the fixed input/output
 ceilings. HTML extraction returns `Result<String, HtmlError>` so input-size
 rejections remain distinct from transport failures.
+
+
+Contract 3.0 replaces the host-supplied `diskTierRoot` install setting with an
+explicit `ccrDurable` capability. This changes the meaning of old host requests,
+so the module rejects contract 2.x hosts rather than silently ignoring their
+persistence request.

@@ -16,7 +16,7 @@ async fn service_compresses_and_retrieves_a_large_log() {
             max_cache_entries: 8,
             max_cache_bytes: 1024 * 1024,
             ccr_ttl_secs: None,
-            disk_tier_root: None,
+            ccr_durable: false,
         })
         .await
         .expect("install should succeed");
