@@ -165,7 +165,7 @@ fn periodic_write_sweep_removes_expired_entries() {
     enable_disk_tier(dir.path().to_path_buf());
     const TTL_SECS: u64 = 30 * 24 * 60 * 60;
     crate::cache::configure(usize::MAX, usize::MAX, Some(TTL_SECS));
-    configure_disk_cap(Some(DEFAULT_DISK_MAX_BYTES));
+    configure_disk_cap(None);
 
     let expired = write_aged(
         dir.path(),
