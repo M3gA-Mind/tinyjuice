@@ -21,8 +21,8 @@ exclude = [
 ]
 
 [workspace]
-members = ["crates/tinyjuice-bus", "crates/tinyjuice-module", "crates/tinyjuice-drivers"]
-default-members = [".", "crates/tinyjuice-bus", "crates/tinyjuice-module", "crates/tinyjuice-drivers"]
+members = ["crates/tinyjuice-bus", "crates/tinyjuice-module", "crates/tinyjuice-drivers", "crates/tinyjuice-host"]
+default-members = [".", "crates/tinyjuice-bus", "crates/tinyjuice-module", "crates/tinyjuice-drivers", "crates/tinyjuice-host"]
 exclude = ["vendor/tinybus", "vendor/tinyagents", "crates/tinyjuice-examples"]
 resolver = "3"
 
@@ -30,7 +30,6 @@ resolver = "3"
 # Optional adapter boundary: REPL ops as `tinytools::Tool` impls.
 tinytools = { version = "0.5", git = "https://github.com/tinyhumansai/tinytools", optional = true }
 anyhow = { version = "1", optional = true }
-uuid = { version = "1", features = ["v4"], optional = true }
 jaq-core = { version = "3", optional = true }
 jaq-std = { version = "3", optional = true }
 jaq-json = { version = "2", optional = true }
@@ -106,8 +105,6 @@ tinytools = ["dep:tinytools", "dep:anyhow", "jq"]
 # File-backed CCR cache commands for the standalone CLI only. Hosts use their
 # own durable CcrStore implementation through the storage bus.
 cli-disk-tier = []
-# Turn-bound `MlHost.Generate` registry (src/host/generate.rs).
-host = ["dep:anyhow", "dep:uuid"]
 # jq-style queries over JSON outputs (the `jq` REPL op and `juice_jq` tool).
 jq = ["dep:jaq-core", "dep:jaq-std", "dep:jaq-json"]
 tinyjuice-treesitter = [
