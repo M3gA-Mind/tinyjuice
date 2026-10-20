@@ -8,7 +8,9 @@ use tinyjuice::cache::store::short_hash;
 use tinystoragedrivers_api::{BlobStore, StorageBackend};
 use tinystoragedrivers_busproxy::{PerCallerEndpoint, ServedStorage, StorageServer, serve};
 use tinystoragedrivers_testkit::MemoryBackend;
-use tinystoragedrivers_types::{Blob, BlobMeta, Capabilities, Capability, Result as StorageResult, Scope, StorageError};
+use tinystoragedrivers_types::{
+    Blob, BlobMeta, Capabilities, Capability, Result as StorageResult, Scope,
+};
 
 /// Serializes the tests that `install`, which reconfigures process-global cache
 /// state.
@@ -248,7 +250,7 @@ async fn store_calls_run_in_place_on_a_current_thread_runtime() {
 }
 
 #[test]
-fn the_module_grant_is_its_schema_at_module_scope() {
+fn declares_document_collection_for_host_provisioning() {
     use tinystoragedrivers_types::CollectionSpec;
     assert_eq!(
         crate::collections(),
