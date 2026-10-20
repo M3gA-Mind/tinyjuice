@@ -1,7 +1,9 @@
 use super::*;
 use crate::storage::tests::rig;
 use tinyjuice_bus::savings::SavingsBucket;
-use tinystoragedrivers_core::{Scope, StorageBackend};
+use tinystoragedrivers_api::{DocumentStore, StorageBackend};
+use tinystoragedrivers_testkit::{Failing, FaultPlan};
+use tinystoragedrivers_types::{ErrorKind, Scope};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -18,7 +20,7 @@ fn req(original: u64, compacted: u64) -> RecordSavingsRequest {
 async fn stored(
     rig: &crate::storage::tests::Rig,
 ) -> Result<Option<serde_json::Value>, Box<dyn std::error::Error>> {
-    let docs = Arc::clone(rig.backend.for_scope(&Scope::local())?.documents());
+    let docs = Arc::clone(rig.backend.for_scope(&Scope::new("local")?)?.documents());
     Ok(docs
         .get(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
         .await?
@@ -156,102 +158,18 @@ async fn a_host_without_storage_is_not_asked_again_within_the_cooldown() -> Test
     Ok(())
 }
 
-/// The real document store, except that writes fail while `fail_puts` is set.
-#[derive(Debug)]
-struct FlakyDocs {
-    inner: Arc<dyn DocumentStore>,
-    fail_puts: std::sync::atomic::AtomicBool,
-}
-
-#[tinystoragedrivers_core::async_trait]
-impl DocumentStore for FlakyDocs {
-    fn capabilities(&self) -> tinystoragedrivers_core::Capabilities {
-        self.inner.capabilities()
-    }
-    async fn ensure_collection(
-        &self,
-        spec: &tinystoragedrivers_core::CollectionSpec,
-    ) -> tinystoragedrivers_core::Result<()> {
-        self.inner.ensure_collection(spec).await
-    }
-    async fn get(
-        &self,
-        collection: &str,
-        id: &str,
-    ) -> tinystoragedrivers_core::Result<
-        Option<tinystoragedrivers_core::Versioned<serde_json::Value>>,
-    > {
-        self.inner.get(collection, id).await
-    }
-    async fn put(
-        &self,
-        collection: &str,
-        id: &str,
-        doc: serde_json::Value,
-        precondition: Precondition,
-    ) -> tinystoragedrivers_core::Result<tinystoragedrivers_core::Version> {
-        if self.fail_puts.load(std::sync::atomic::Ordering::SeqCst) {
-            return Err(tinystoragedrivers_core::StorageError::unavailable(
-                "writes are down",
-            ));
-        }
-        self.inner.put(collection, id, doc, precondition).await
-    }
-    async fn delete(
-        &self,
-        collection: &str,
-        id: &str,
-        precondition: Precondition,
-    ) -> tinystoragedrivers_core::Result<bool> {
-        self.inner.delete(collection, id, precondition).await
-    }
-    async fn query(
-        &self,
-        collection: &str,
-        query: &tinystoragedrivers_core::Query,
-    ) -> tinystoragedrivers_core::Result<
-        tinystoragedrivers_core::Page<tinystoragedrivers_core::Versioned<serde_json::Value>>,
-    > {
-        self.inner.query(collection, query).await
-    }
-    async fn count(
-        &self,
-        collection: &str,
-        filter: &tinystoragedrivers_core::Filter,
-    ) -> tinystoragedrivers_core::Result<u64> {
-        self.inner.count(collection, filter).await
-    }
-    async fn delete_where(
-        &self,
-        collection: &str,
-        filter: &tinystoragedrivers_core::Filter,
-    ) -> tinystoragedrivers_core::Result<u64> {
-        self.inner.delete_where(collection, filter).await
-    }
-    async fn claim(
-        &self,
-        collection: &str,
-        filter: &tinystoragedrivers_core::Filter,
-        sort: &[tinystoragedrivers_core::Sort],
-        patch: &serde_json::Value,
-    ) -> tinystoragedrivers_core::Result<
-        Option<tinystoragedrivers_core::Versioned<serde_json::Value>>,
-    > {
-        self.inner.claim(collection, filter, sort, patch).await
-    }
-    async fn drop_collection(&self, collection: &str) -> tinystoragedrivers_core::Result<()> {
-        self.inner.drop_collection(collection).await
-    }
-}
-
 #[tokio::test]
 async fn an_import_whose_write_fails_is_an_error_leaves_totals_alone_and_can_retry() {
-    let backend = tinystoragedrivers_core::MemoryStorage::new();
-    let inner = Arc::clone(backend.for_scope(&Scope::local()).unwrap().documents());
-    let flaky = Arc::new(FlakyDocs {
-        inner,
-        fail_puts: std::sync::atomic::AtomicBool::new(true),
-    });
+    let backend = tinystoragedrivers_testkit::memory_backend();
+    let inner = Arc::clone(
+        backend
+            .for_scope(&Scope::new("local").unwrap())
+            .unwrap()
+            .documents(),
+    );
+    let faults = FaultPlan::new();
+    faults.fail_operation_nth("documents.put", 1, ErrorKind::Unavailable);
+    let flaky = Arc::new(Failing::with_plan(inner, faults));
     let savings = Savings::new();
     {
         let mut state = savings.state.lock().await;
@@ -277,9 +195,6 @@ async fn an_import_whose_write_fails_is_an_error_leaves_totals_alone_and_can_ret
         "totals roll back"
     );
 
-    flaky
-        .fail_puts
-        .store(false, std::sync::atomic::Ordering::SeqCst);
     assert!(savings.import(None, legacy).await.unwrap());
     assert_eq!(savings.stats(None).await.total.tokens_saved, 20);
     let stored = flaky.get(SAVINGS_COLLECTION, SAVINGS_DOC_ID).await.unwrap();
