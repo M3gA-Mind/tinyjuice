@@ -26,12 +26,14 @@ pub(crate) fn configure(root: &Path, ttl: Option<Duration>) -> Result<(), String
 }
 
 pub(crate) fn inventory(root: &Path) -> Result<Inventory, String> {
-    let (blobs, _runtime) = open_file_blobs(root)?;
+    configure(root, None)?;
+    let blobs = open_file_blobs(root)?;
     let mut entries = Vec::new();
     let mut after = None;
     loop {
-        let page = run_blob(&blobs, {
+        let page = run_blob({
             let after = after.clone();
+            let blobs = Arc::clone(&blobs);
             async move { blobs.list_page(&format!("{CCR_PREFIX}/"), after.as_deref(), PAGE_SIZE).await }
         })?;
         entries.extend(page.items.into_iter().map(|item| item.meta));
@@ -48,7 +50,7 @@ pub(crate) fn collect(
     ttl: Option<Duration>,
     max_bytes: Option<u64>,
 ) -> Result<(usize, u64, usize, u64), String> {
-    let (blobs, _runtime) = open_file_blobs(root)?;
+    let blobs = open_file_blobs(root)?;
     let mut entries = list_all(Arc::clone(&blobs))?;
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -84,7 +86,7 @@ pub(crate) fn collect(
     Ok((remove.len(), remaining_bytes, remaining.len(), remaining_bytes))
 }
 
-fn open_file_blobs(root: &Path) -> Result<(Arc<dyn BlobStore>, tokio::runtime::Runtime), String> {
+fn open_file_blobs(root: &Path) -> Result<Arc<dyn BlobStore>, String> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -94,7 +96,9 @@ fn open_file_blobs(root: &Path) -> Result<(Arc<dyn BlobStore>, tokio::runtime::R
     let backend = runtime.block_on(open(&config)).map_err(|error| error.to_string())?;
     let scope = Scope::new("tinyjuice-cli").map_err(|error| error.to_string())?;
     let storage = backend.for_scope(&scope).map_err(|error| error.to_string())?;
-    Ok((Arc::clone(storage.blobs()), runtime))
+    let blobs = Arc::clone(storage.blobs());
+    drop(runtime);
+    Ok(blobs)
 }
 
 fn import_legacy_files(
@@ -132,8 +136,9 @@ fn list_all(blobs: Arc<dyn BlobStore>) -> Result<Vec<tinystoragedrivers_types::B
     let mut entries = Vec::new();
     let mut after = None;
     loop {
-        let page = run_blob(&blobs, {
+        let page = run_blob({
             let after = after.clone();
+            let blobs = Arc::clone(&blobs);
             async move { blobs.list_page(&format!("{CCR_PREFIX}/"), after.as_deref(), PAGE_SIZE).await }
         })?;
         entries.extend(page.items);
@@ -146,18 +151,17 @@ fn list_all(blobs: Arc<dyn BlobStore>) -> Result<Vec<tinystoragedrivers_types::B
 
 fn delete_blob(blobs: Arc<dyn BlobStore>, key: &str) -> Result<(), String> {
     let key = key.to_owned();
-    run_blob(&blobs, async move { blobs.delete(&key).await })?
+    let handle = Arc::clone(&blobs);
+    run_blob(async move { handle.delete(&key).await })?
         .map(|_| ())
         .map_err(|error| error.to_string())
 }
 
 fn run_blob<T: Send + 'static>(
-    blobs: &Arc<dyn BlobStore>,
     future: impl std::future::Future<Output = tinystoragedrivers_types::Result<T>> + Send + 'static,
 ) -> Result<T, String> {
     // Each helper owns a separate current-thread runtime. Blob engines in this
     // CLI are self-contained and do not depend on work from another runtime.
-    let _ = blobs;
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
