@@ -290,9 +290,9 @@ pub fn offload_checked(content: &str) -> (String, bool) {
 /// Returns whether the original was retained (memory or the host's durable store).
 pub fn offload_checked_with_hash(hash: &str, content: &str) -> bool {
     debug_assert_eq!(hash, short_hash(content), "hash must match content");
-    let (max_entries, max_bytes, ttl) = {
+    let (max_entries, max_bytes) = {
         let l = limits().read().unwrap_or_else(|p| p.into_inner());
-        (l.max_entries, l.max_bytes, l.ttl)
+        (l.max_entries, l.max_bytes)
     };
     let mem_retained = global().lock().unwrap_or_else(|p| p.into_inner()).insert(
         hash.to_string(),

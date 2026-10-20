@@ -1560,6 +1560,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "tinyjuice-cli"
+version = "0.11.0"
+dependencies = [
+ "dirs",
+ "serde_json",
+ "tempfile",
+ "tinyjuice",
+ "tinyjuice-drivers",
+ "tinystoragedrivers",
+ "tinystoragedrivers-api",
+ "tinystoragedrivers-types",
+ "tokio",
+]
+
+[[package]]
 name = "tinyjuice-drivers"
 version = "0.9.0"
 dependencies = [
@@ -1567,7 +1582,8 @@ dependencies = [
  "log",
  "tinyjuice",
  "tinyjuice-bus",
- "tinystoragedrivers-core",
+ "tinystoragedrivers-api",
+ "tinystoragedrivers-types",
  "tokio",
 ]
 
@@ -1588,6 +1604,50 @@ dependencies = [
  "tinystoragedrivers-client",
  "tinystoragedrivers-core",
  "tokio",
+]
+
+[[package]]
+name = "tinystoragedrivers"
+version = "2.0.1"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.1#e3224a8262193e7466b230a59ef1c4769e44bf02"
+dependencies = [
+ "tinystoragedrivers-api",
+ "tinystoragedrivers-blob",
+ "tinystoragedrivers-connect",
+ "tinystoragedrivers-document",
+ "tinystoragedrivers-kv",
+ "tinystoragedrivers-queue",
+ "tinystoragedrivers-secrets 2.0.1",
+ "tinystoragedrivers-types",
+]
+
+[[package]]
+name = "tinystoragedrivers-api"
+version = "2.0.1"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.1#e3224a8262193e7466b230a59ef1c4769e44bf02"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "futures-core",
+ "serde",
+ "serde_json",
+ "tinystoragedrivers-types",
+ "zeroize",
+]
+
+[[package]]
+name = "tinystoragedrivers-blob"
+version = "2.0.1"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.1#e3224a8262193e7466b230a59ef1c4769e44bf02"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "futures-core",
+ "serde",
+ "serde_json",
+ "tinystoragedrivers-api",
+ "tinystoragedrivers-connect",
+ "tinystoragedrivers-types",
 ]
 
 [[package]]
@@ -1625,7 +1685,16 @@ dependencies = [
  "serde_json",
  "tinystoragedrivers-bus",
  "tinystoragedrivers-core",
- "tinystoragedrivers-secrets",
+ "tinystoragedrivers-secrets 1.0.0",
+ "tokio",
+]
+
+[[package]]
+name = "tinystoragedrivers-connect"
+version = "2.0.1"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.1#e3224a8262193e7466b230a59ef1c4769e44bf02"
+dependencies = [
+ "tinystoragedrivers-types",
  "tokio",
 ]
 
@@ -1643,6 +1712,54 @@ dependencies = [
  "tokio",
  "ulid",
  "zstd",
+]
+
+[[package]]
+name = "tinystoragedrivers-document"
+version = "2.0.1"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.1#e3224a8262193e7466b230a59ef1c4769e44bf02"
+dependencies = [
+ "async-trait",
+ "data-encoding",
+ "libc",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tinystoragedrivers-api",
+ "tinystoragedrivers-connect",
+ "tinystoragedrivers-types",
+ "tokio",
+ "zstd",
+]
+
+[[package]]
+name = "tinystoragedrivers-kv"
+version = "2.0.1"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.1#e3224a8262193e7466b230a59ef1c4769e44bf02"
+dependencies = [
+ "async-trait",
+ "libc",
+ "serde",
+ "serde_json",
+ "tinystoragedrivers-api",
+ "tinystoragedrivers-connect",
+ "tinystoragedrivers-types",
+]
+
+[[package]]
+name = "tinystoragedrivers-queue"
+version = "2.0.1"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.1#e3224a8262193e7466b230a59ef1c4769e44bf02"
+dependencies = [
+ "async-trait",
+ "data-encoding",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tinystoragedrivers-api",
+ "tinystoragedrivers-types",
+ "tokio",
+ "ulid",
 ]
 
 [[package]]
@@ -1666,6 +1783,27 @@ dependencies = [
  "windows-permissions",
  "winsafe",
  "zeroize",
+]
+
+[[package]]
+name = "tinystoragedrivers-secrets"
+version = "2.0.1"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.1#e3224a8262193e7466b230a59ef1c4769e44bf02"
+dependencies = [
+ "async-trait",
+ "tinystoragedrivers-api",
+ "tinystoragedrivers-types",
+ "zeroize",
+]
+
+[[package]]
+name = "tinystoragedrivers-types"
+version = "2.0.1"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.1#e3224a8262193e7466b230a59ef1c4769e44bf02"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]
