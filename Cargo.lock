@@ -1539,6 +1539,8 @@ dependencies = [
  "tinyjuice",
  "tinyjuice-bus",
  "tinystoragedrivers-api",
+ "tinystoragedrivers-blob",
+ "tinystoragedrivers-testkit",
  "tinystoragedrivers-types",
  "tokio",
 ]
