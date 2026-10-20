@@ -10,18 +10,22 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tinybus::Connection;
-use tinyjuice::cache::store::{CcrPutResult, CcrStore, RangeUnit};
+use tinyjuice::cache::store::{CcrPutResult, CcrStore, RangeUnit, short_hash};
 use tinyjuice_drivers::BlobCcrStore;
 use tinystoragedrivers_api::{BlobStore, DocumentStore, Storage};
 
 /// The host's blob port, connected through `connection`, when it serves one.
 async fn blobs(connection: Connection) -> Option<Arc<dyn BlobStore>> {
-    scoped(connection).await.map(|storage| Arc::clone(storage.blobs()))
+    scoped(connection)
+        .await
+        .map(|storage| Arc::clone(storage.blobs()))
 }
 
 /// The host's document port, connected through `connection`, when it serves one.
 pub(crate) async fn documents(connection: Connection) -> Option<Arc<dyn DocumentStore>> {
-    scoped(connection).await.map(|storage| Arc::clone(storage.documents()))
+    scoped(connection)
+        .await
+        .map(|storage| Arc::clone(storage.documents()))
 }
 
 /// The module's scope of the host's storage, when the host serves one.
@@ -71,16 +75,18 @@ async fn tier_on(blobs: Arc<dyn BlobStore>, ttl: Option<Duration>) -> Option<Arc
 /// The cache calls the store from async handlers; a blocking bridge on the only
 /// worker would wait for a reply that worker must deliver. On a multi-thread
 /// runtime `block_in_place` hands the worker's queue to a replacement thread for
-/// the duration of the call.
+/// the duration of the call. A current-thread runtime cannot safely make this
+/// synchronous call, so durable writes fail closed there instead of blocking.
 struct OffWorker<S>(S);
 
 impl<S> OffWorker<S> {
-    fn off_worker<T>(call: impl FnOnce() -> T) -> T {
+    fn off_worker<T>(call: impl FnOnce() -> T) -> Option<T> {
         match tokio::runtime::Handle::try_current() {
             Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
-                tokio::task::block_in_place(call)
+                Some(tokio::task::block_in_place(call))
             }
-            _ => call(),
+            Ok(_) => None,
+            Err(_) => Some(call()),
         }
     }
 }
@@ -88,14 +94,15 @@ impl<S> OffWorker<S> {
 impl<S: CcrStore> CcrStore for OffWorker<S> {
     fn put(&self, content: &str) -> CcrPutResult {
         Self::off_worker(|| self.0.put(content))
+            .unwrap_or_else(|| CcrPutResult::new(short_hash(content), false))
     }
 
     fn get(&self, token: &str) -> Option<String> {
-        Self::off_worker(|| self.0.get(token))
+        Self::off_worker(|| self.0.get(token)).flatten()
     }
 
     fn get_range(&self, token: &str, start: usize, end: usize, unit: RangeUnit) -> Option<String> {
-        Self::off_worker(|| self.0.get_range(token, start, end, unit))
+        Self::off_worker(|| self.0.get_range(token, start, end, unit)).flatten()
     }
 }
 

@@ -595,11 +595,8 @@ fn gc_command(args: Vec<String>) -> Result<(), String> {
     };
 
     let root = cli_cache_root();
-    let (removed, freed_bytes, kept, kept_bytes) = storage::collect(
-        &root,
-        ttl.map(std::time::Duration::from_secs),
-        budget,
-    )?;
+    let (removed, freed_bytes, kept, kept_bytes) =
+        storage::collect(&root, ttl.map(std::time::Duration::from_secs), budget)?;
     println!(
         "gc {}: removed {} entries, freed {} bytes, kept {} ({} bytes)",
         root.display(),
@@ -701,7 +698,11 @@ fn cli_cache_limits_from_env() -> (usize, usize, Option<u64>) {
 fn configure_cli_cache() -> Result<(), String> {
     let (max_entries, max_bytes, ttl_secs) = cli_cache_limits_from_env();
     tinyjuice::cache::configure(max_entries, max_bytes, ttl_secs);
-    storage::configure(&cli_cache_root(), ttl_secs.map(std::time::Duration::from_secs))
+    storage::configure(
+        &cli_cache_root(),
+        ttl_secs.map(std::time::Duration::from_secs),
+        Some(max_bytes as u64),
+    )
 }
 
 fn cli_cache_root() -> PathBuf {

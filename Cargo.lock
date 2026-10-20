@@ -1519,13 +1519,16 @@ dependencies = [
 name = "tinyjuice-cli"
 version = "0.11.0"
 dependencies = [
+ "async-trait",
  "dirs",
+ "log",
  "serde_json",
  "tempfile",
  "tinyjuice",
  "tinyjuice-drivers",
  "tinystoragedrivers",
  "tinystoragedrivers-api",
+ "tinystoragedrivers-testkit",
  "tinystoragedrivers-types",
  "tokio",
 ]

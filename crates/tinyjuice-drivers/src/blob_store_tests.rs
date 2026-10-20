@@ -15,7 +15,10 @@ fn test_now_ms() -> u64 {
 fn clocked() -> (Arc<dyn BlobStore>, &'static AtomicU64) {
     let scope = Scope::new("local").unwrap();
     (
-        Arc::new(tinystoragedrivers_blob::MemoryBlobStore::with_clock(scope, test_now_ms)),
+        Arc::new(tinystoragedrivers_blob::MemoryBlobStore::with_clock(
+            scope,
+            test_now_ms,
+        )),
         &TEST_NOW,
     )
 }
@@ -55,6 +58,36 @@ fn an_original_round_trips_under_its_content_token() {
 }
 
 #[test]
+fn released_blob_keys_are_read_in_place_without_copying_them() {
+    let blobs = handle();
+    let token = short_hash("released original");
+    let key = format!("tinyjuice_ccr/{token}");
+    crate::blocking::Blocking::new()
+        .unwrap()
+        .run({
+            let blobs = Arc::clone(&blobs);
+            let key = key.clone();
+            async move {
+                blobs
+                    .put(&key, b"released original".to_vec(), Some(CONTENT_TYPE))
+                    .await
+            }
+        })
+        .unwrap()
+        .unwrap();
+
+    let store = BlobCcrStore::new(Arc::clone(&blobs), None).unwrap();
+    assert_eq!(store.get(&token).as_deref(), Some("released original"));
+    let keys = crate::blocking::Blocking::new()
+        .unwrap()
+        .run(async move { blobs.list("tinyjuice_ccr/").await })
+        .unwrap()
+        .unwrap();
+    assert_eq!(keys.len(), 1);
+    assert_eq!(keys[0].key, key);
+}
+
+#[test]
 fn identical_content_is_idempotent_and_distinct_content_is_separate() {
     let store = BlobCcrStore::new(handle(), None).unwrap();
     let a = store.put("same");
@@ -69,6 +102,7 @@ fn identical_content_is_idempotent_and_distinct_content_is_separate() {
 fn an_original_expires_when_its_ttl_has_elapsed() {
     let _guard = CLOCK_TEST_LOCK.lock().unwrap();
     let (blobs, now) = clocked();
+    now.store(1_000, Ordering::SeqCst);
     let store = BlobCcrStore::new(blobs, Some(Duration::from_millis(500))).unwrap();
     let put = store.put("short lived");
     assert!(put.retained());
@@ -82,6 +116,7 @@ fn an_original_expires_when_its_ttl_has_elapsed() {
 fn re_offloading_restarts_the_lifetime() {
     let _guard = CLOCK_TEST_LOCK.lock().unwrap();
     let (blobs, now) = clocked();
+    now.store(1_000, Ordering::SeqCst);
     let store = BlobCcrStore::new(blobs, Some(Duration::from_millis(500))).unwrap();
     let put = store.put("refreshed");
     now.store(1_400, Ordering::SeqCst);
@@ -104,10 +139,7 @@ fn a_zero_ttl_is_never_advertised_as_retained() {
 fn a_ttl_needs_a_handle_that_can_expire_blobs() {
     let (blobs, _) = faulty(false);
     let err = BlobCcrStore::new(Arc::clone(&blobs), Some(Duration::from_secs(5))).unwrap_err();
-    assert_eq!(
-        err.kind(),
-        ErrorKind::Unsupported(Capability::BlobTtl)
-    );
+    assert_eq!(err.kind(), ErrorKind::Unsupported(Capability::BlobTtl));
     assert!(BlobCcrStore::new(blobs, None).is_ok());
 }
 
@@ -206,4 +238,3 @@ fn debug_hides_the_handle() {
     let store = BlobCcrStore::new(handle(), None).unwrap();
     assert!(format!("{store:?}").starts_with("BlobCcrStore"));
 }
-

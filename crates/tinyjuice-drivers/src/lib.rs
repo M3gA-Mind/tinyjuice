@@ -14,8 +14,8 @@
 //! [`BlobStore`]: tinystoragedrivers_api::BlobStore
 //! [`Blocking`]: crate::blocking::Blocking
 
-mod blocking;
 mod blob_store;
+mod blocking;
 
 pub use blob_store::{BlobCcrStore, CCR_PREFIX};
 

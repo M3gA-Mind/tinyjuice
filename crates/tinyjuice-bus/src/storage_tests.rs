@@ -3,8 +3,7 @@ use super::*;
 #[test]
 fn owner_collections_declare_savings_without_engine_or_migration_policy() {
     assert_eq!(collections(), vec![CollectionSpec::new("juice.savings")]);
-    assert_eq!(CCR_PREFIX, "juice/ccr");
-    assert_eq!(LEGACY_CCR_PREFIX, "tinyjuice_ccr/");
+    assert_eq!(CCR_PREFIX, "tinyjuice_ccr");
 }
 
 #[test]

@@ -2,11 +2,8 @@
 
 use tinystoragedrivers_types::CollectionSpec;
 
-/// CCR originals are stored below `juice/ccr/<token>`.
-pub const CCR_PREFIX: &str = "juice/ccr";
-
-/// Legacy prefix used before the owner moved originals into `juice/ccr`.
-pub const LEGACY_CCR_PREFIX: &str = "tinyjuice_ccr/";
+/// CCR originals retain the released `tinyjuice_ccr/<token>` blob keys.
+pub const CCR_PREFIX: &str = "tinyjuice_ccr";
 
 /// The owner-scoped savings totals document collection.
 pub const SAVINGS_COLLECTION: &str = "juice.savings";

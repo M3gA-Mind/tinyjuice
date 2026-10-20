@@ -114,6 +114,31 @@ async fn store_calls_on_the_only_worker_do_not_deadlock() -> TestResult {
     Ok(())
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn durable_calls_fail_closed_on_a_current_thread_runtime() -> TestResult {
+    let rig = rig(true).await?;
+    let store = durable_tier(rig.module.clone(), None)
+        .await
+        .ok_or("host serves storage")?;
+    let put = store.put("current thread must not block its bus runtime");
+    assert!(!put.retained());
+    assert!(store.get(put.token()).is_none());
+
+    let blobs = rig.backend.for_scope(&Scope::new("local")?)?;
+    assert!(
+        blobs
+            .blobs()
+            .get(&format!(
+                "{}/{}",
+                tinyjuice_drivers::CCR_PREFIX,
+                put.token()
+            ))
+            .await?
+            .is_none()
+    );
+    Ok(())
+}
+
 fn install_request(durable: bool) -> tinyjuice_bus::wire::InstallRequest {
     tinyjuice_bus::wire::InstallRequest {
         options: tinyjuice::types::CompressOptions::default(),
@@ -175,10 +200,7 @@ impl BlobStore for NoBlobExpiry {
         self.0.put(key, bytes, content_type).await
     }
 
-    async fn get(
-        &self,
-        key: &str,
-    ) -> StorageResult<Option<Blob>> {
+    async fn get(&self, key: &str) -> StorageResult<Option<Blob>> {
         self.0.get(key).await
     }
 
@@ -190,10 +212,7 @@ impl BlobStore for NoBlobExpiry {
         self.0.get_range(key, range).await
     }
 
-    async fn head(
-        &self,
-        key: &str,
-    ) -> StorageResult<Option<BlobMeta>> {
+    async fn head(&self, key: &str) -> StorageResult<Option<BlobMeta>> {
         self.0.head(key).await
     }
 
@@ -201,10 +220,7 @@ impl BlobStore for NoBlobExpiry {
         self.0.delete(key).await
     }
 
-    async fn list(
-        &self,
-        prefix: &str,
-    ) -> StorageResult<Vec<BlobMeta>> {
+    async fn list(&self, prefix: &str) -> StorageResult<Vec<BlobMeta>> {
         self.0.list(prefix).await
     }
 }
@@ -224,10 +240,10 @@ async fn a_handle_that_cannot_expire_blobs_gets_no_ttl_tier_but_a_keep_forever_o
     Ok(())
 }
 
-/// Off a multi-thread runtime there is no worker to hand off, so the call runs
-/// in place.
+/// On a current-thread runtime the synchronous bridge cannot safely wait for
+/// the same executor to deliver its reply, so it refuses durable calls.
 #[tokio::test(flavor = "current_thread")]
-async fn store_calls_run_in_place_on_a_current_thread_runtime() {
+async fn off_worker_refuses_calls_on_a_current_thread_runtime() {
     struct Fixed;
     impl CcrStore for Fixed {
         fn put(&self, content: &str) -> CcrPutResult {
@@ -241,12 +257,9 @@ async fn store_calls_run_in_place_on_a_current_thread_runtime() {
         }
     }
     let store = OffWorker(Fixed);
-    assert!(store.put("x").retained());
-    assert_eq!(store.get("t").as_deref(), Some("fixed"));
-    assert_eq!(
-        store.get_range("t", 0, 1, RangeUnit::Lines).as_deref(),
-        Some("range")
-    );
+    assert!(!store.put("x").retained());
+    assert_eq!(store.get("t"), None);
+    assert_eq!(store.get_range("t", 0, 1, RangeUnit::Lines), None);
 }
 
 #[test]

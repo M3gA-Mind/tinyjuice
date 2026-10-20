@@ -10,6 +10,7 @@ use tinyjuice::{
     load_builtin_rules, reduce_execution_with_rules, reduce_json_str, verify_rule_fixtures,
     verify_rules,
 };
+use tinyjuice_drivers::CCR_PREFIX;
 
 #[path = "../storage.rs"]
 mod storage;
@@ -755,7 +756,7 @@ fn run_cat(args: &[String]) -> Result<(), String> {
         tinyjuice::cache::DEFAULT_MAX_BYTES,
         None,
     );
-    storage::configure(&store_dir, None)?;
+    storage::configure(&store_dir, storage::configured_ttl(), None)?;
     let content = match range {
         Some((unit, (start, end))) => tinyjuice::cache::retrieve_range(&token, start, end, unit),
         None => tinyjuice::cache::retrieve(&token),
@@ -817,13 +818,19 @@ struct CcrStoreEntry {
 }
 
 fn read_ccr_store_inventory(store_dir: &Path) -> Result<CcrStoreInventory, String> {
-    let inventory = storage::inventory(store_dir)?;
+    let inventory = storage::inventory(store_dir, storage::configured_ttl())?;
     let entries = inventory
         .entries
         .into_iter()
         .filter_map(|entry| {
-            let token = entry.key.strip_prefix("juice/ccr/")?.to_owned();
-            is_cli_ccr_token(&token).then_some(CcrStoreEntry { token, bytes: entry.len })
+            let token = entry
+                .key
+                .strip_prefix(&format!("{CCR_PREFIX}/"))?
+                .to_owned();
+            is_cli_ccr_token(&token).then_some(CcrStoreEntry {
+                token,
+                bytes: entry.len,
+            })
         })
         .collect();
     Ok(CcrStoreInventory {
@@ -1294,5 +1301,5 @@ fn print_uninstall_usage() {
 }
 
 #[cfg(test)]
-#[path = "tinyjuice_reduce_tests.rs"]
+#[path = "tinyjuice-reduce/tinyjuice_reduce_tests.rs"]
 mod tests;
