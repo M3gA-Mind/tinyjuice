@@ -1305,5 +1305,5 @@ fn print_uninstall_usage() {
 }
 
 #[cfg(test)]
-#[path = "main_tests.rs"]
+#[path = "tinyjuice_reduce_tests.rs"]
 mod tests;
