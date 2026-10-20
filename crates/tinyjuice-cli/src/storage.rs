@@ -18,7 +18,9 @@ pub(crate) struct Inventory {
 }
 
 pub(crate) fn configure(root: &Path, ttl: Option<Duration>) -> Result<(), String> {
-    let (blobs, _runtime) = open_file_blobs(root)?;
+    std::fs::create_dir_all(root)
+        .map_err(|error| format!("cannot create CCR storage directory {}: {error}", root.display()))?;
+    let blobs = open_file_blobs(root)?;
     import_legacy_files(root, &blobs, ttl)?;
     let store = BlobCcrStore::new(blobs, ttl).map_err(|error| error.to_string())?;
     set_durable_tier(Some(Arc::new(store)));
@@ -50,6 +52,7 @@ pub(crate) fn collect(
     ttl: Option<Duration>,
     max_bytes: Option<u64>,
 ) -> Result<(usize, u64, usize, u64), String> {
+    configure(root, ttl)?;
     let blobs = open_file_blobs(root)?;
     let mut entries = list_all(Arc::clone(&blobs))?;
     let now_ms = std::time::SystemTime::now()
@@ -152,9 +155,7 @@ fn list_all(blobs: Arc<dyn BlobStore>) -> Result<Vec<tinystoragedrivers_types::B
 fn delete_blob(blobs: Arc<dyn BlobStore>, key: &str) -> Result<(), String> {
     let key = key.to_owned();
     let handle = Arc::clone(&blobs);
-    run_blob(async move { handle.delete(&key).await })?
-        .map(|_| ())
-        .map_err(|error| error.to_string())
+    run_blob(async move { handle.delete(&key).await }).map(|_| ())
 }
 
 fn run_blob<T: Send + 'static>(
