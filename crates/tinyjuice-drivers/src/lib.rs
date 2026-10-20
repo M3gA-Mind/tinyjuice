@@ -11,13 +11,13 @@
 //! [`Blocking`] bridge that runs the port's futures on a dedicated runtime
 //! thread. That works from inside or outside a tokio runtime.
 //!
-//! [`BlobStore`]: tinystoragedrivers_core::BlobStore
-//! [`Blocking`]: tinystoragedrivers_core::Blocking
+//! [`BlobStore`]: tinystoragedrivers_api::BlobStore
+//! [`Blocking`]: crate::blocking::Blocking
 
+mod blocking;
 mod blob_store;
 
 pub use blob_store::{BlobCcrStore, CCR_PREFIX};
-pub use tinyjuice_bus::storage::storage_schema;
 
 #[cfg(test)]
 #[path = "faulty_tests.rs"]
