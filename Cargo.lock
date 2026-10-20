@@ -1555,7 +1555,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
- "tinystoragedrivers-core",
+ "tinystoragedrivers-types",
  "tokio",
 ]
 
