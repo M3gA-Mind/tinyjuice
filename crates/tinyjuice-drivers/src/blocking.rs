@@ -28,15 +28,13 @@ impl fmt::Debug for Blocking {
 impl Blocking {
     pub(crate) fn new() -> Result<Self, StorageError> {
         let (jobs, receiver) = mpsc::channel::<Job>();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|error| StorageError::backend("cannot build the storage bridge runtime").with_source(error))?;
         thread::Builder::new()
             .name("tinyjuice-storage-bridge".into())
             .spawn(move || {
-                let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                else {
-                    return;
-                };
                 ON_BRIDGE.with(|active| active.set(true));
                 while let Ok(job) = receiver.recv() {
                     job(&runtime);
