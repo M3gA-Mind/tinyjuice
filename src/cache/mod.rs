@@ -1,10 +1,5 @@
 //! CCR (Compress-Cache-Retrieve) — original storage + retrieval markers.
 
-#[cfg(all(test, feature = "cli-disk-tier"))]
-pub(crate) static DISK_TIER_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-#[cfg(feature = "cli-disk-tier")]
-mod disk_tier;
 pub mod marker;
 pub mod store;
 
@@ -18,8 +13,3 @@ pub use store::{
     retrieve_range, set_durable_tier, short_hash, stats,
 };
 
-#[cfg(feature = "cli-disk-tier")]
-pub use disk_tier::{
-    DEFAULT_DISK_MAX_BYTES, GcStats, configure_disk_cap, disable_disk_tier, enable_disk_tier,
-    gc_disk_dir, gc_disk_tier,
-};
