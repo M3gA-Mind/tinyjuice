@@ -13,7 +13,8 @@ use tinyjuice_bus::savings::{
     RecordSavingsRequest, SAVINGS_DOC_ID, SavingsAggregate, StoredSavings,
 };
 use tinyjuice_bus::storage::SAVINGS_COLLECTION;
-use tinystoragedrivers_core::{DocumentStore, DocumentStoreExt, Precondition};
+use tinystoragedrivers_api::{DocumentStore, DocumentStoreExt};
+use tinystoragedrivers_types::Precondition;
 
 /// Working state behind one lock, so load, change and write never interleave.
 #[derive(Default)]
