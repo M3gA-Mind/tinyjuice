@@ -46,7 +46,7 @@ pub struct StorageCallbackAddress {
 }
 
 /// A savings snapshot plus a temporary callback destination for adoption.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ImportSavingsAtRequest {
     /// The legacy savings snapshot to adopt if the destination has no totals.
