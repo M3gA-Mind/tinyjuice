@@ -134,7 +134,9 @@ fn import_skips_directories_and_unrecognized_names_and_removes_expired_files() {
     let token = tinyjuice::cache::short_hash(content);
     let expired = dir.path().join(&token);
     std::fs::write(&expired, content).unwrap();
-    std::fs::File::open(&expired)
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&expired)
         .unwrap()
         .set_times(std::fs::FileTimes::new().set_modified(SystemTime::UNIX_EPOCH))
         .unwrap();
@@ -161,7 +163,9 @@ fn import_uses_an_existing_backend_write_time_without_sidecars() {
     let source = dir.path().join(&token);
     std::fs::write(&source, content).unwrap();
     let source_time = SystemTime::now() - Duration::from_secs(60);
-    std::fs::File::open(&source)
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&source)
         .unwrap()
         .set_times(std::fs::FileTimes::new().set_modified(source_time))
         .unwrap();
@@ -450,7 +454,9 @@ fn retry_after_timestamp_write_failure_preserves_the_source_file_age() {
     let source_path = dir.path().join(&token);
     std::fs::write(&source_path, content).unwrap();
     let source_time = SystemTime::now() - Duration::from_secs(20);
-    std::fs::File::open(&source_path)
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&source_path)
         .unwrap()
         .set_times(std::fs::FileTimes::new().set_modified(source_time))
         .unwrap();
@@ -503,7 +509,9 @@ fn imports_released_v01010_disk_tier_file_and_preserves_its_age() {
     let source_path = dir.path().join(TOKEN);
     std::fs::write(&source_path, CONTENT).unwrap();
     let source_time = SystemTime::now() - Duration::from_secs(5);
-    std::fs::File::open(&source_path)
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&source_path)
         .unwrap()
         .set_times(std::fs::FileTimes::new().set_modified(source_time))
         .unwrap();
