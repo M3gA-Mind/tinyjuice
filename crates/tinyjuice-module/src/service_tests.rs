@@ -409,7 +409,9 @@ async fn import_savings_at_uses_only_its_request_scoped_storage_address() {
     let _callback_server = serve_at_address(
         &host,
         address.clone(),
-        Arc::new(StorageServer::new(callback)),
+        Arc::new(PerCallerEndpoint::new(move |_| {
+            Some(StorageServer::new(callback.clone()))
+        })),
     )
     .await
     .unwrap();

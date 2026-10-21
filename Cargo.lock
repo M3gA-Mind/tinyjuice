@@ -1420,7 +1420,7 @@ dependencies = [
 [[package]]
 name = "tinybus"
 version = "0.1.6"
-source = "git+https://github.com/senamakel/tinybus?rev=1d0aa34104c84f6817f398b0abe164df6c5e7b82#1d0aa34104c84f6817f398b0abe164df6c5e7b82"
+source = "git+https://github.com/senamakel/tinybus?rev=24ec2ccafcc98fab35fa10ffcbcefa87eb32e3e8#24ec2ccafcc98fab35fa10ffcbcefa87eb32e3e8"
 dependencies = [
  "async-trait",
  "flate2",
@@ -1440,30 +1440,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "tinybus"
-version = "0.1.6"
-source = "git+https://github.com/senamakel/tinybus?rev=24ec2ccafcc98fab35fa10ffcbcefa87eb32e3e8#24ec2ccafcc98fab35fa10ffcbcefa87eb32e3e8"
-dependencies = [
- "async-trait",
- "flate2",
- "libc",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tar",
- "tempfile",
- "thiserror",
- "tokio",
- "toml",
- "tracing",
- "ureq",
- "zip",
-]
-
-[[package]]
 name = "tinybus-macros"
 version = "0.1.6"
-source = "git+https://github.com/senamakel/tinybus?rev=1d0aa34104c84f6817f398b0abe164df6c5e7b82#1d0aa34104c84f6817f398b0abe164df6c5e7b82"
+source = "git+https://github.com/senamakel/tinybus?rev=24ec2ccafcc98fab35fa10ffcbcefa87eb32e3e8#24ec2ccafcc98fab35fa10ffcbcefa87eb32e3e8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1473,12 +1452,12 @@ dependencies = [
 [[package]]
 name = "tinybus-module"
 version = "0.1.6"
-source = "git+https://github.com/senamakel/tinybus?rev=1d0aa34104c84f6817f398b0abe164df6c5e7b82#1d0aa34104c84f6817f398b0abe164df6c5e7b82"
+source = "git+https://github.com/senamakel/tinybus?rev=24ec2ccafcc98fab35fa10ffcbcefa87eb32e3e8#24ec2ccafcc98fab35fa10ffcbcefa87eb32e3e8"
 dependencies = [
  "async-trait",
  "serde",
  "serde_json",
- "tinybus 0.1.6 (git+https://github.com/senamakel/tinybus?rev=1d0aa34104c84f6817f398b0abe164df6c5e7b82)",
+ "tinybus",
  "tokio",
  "tracing",
 ]
@@ -1567,7 +1546,7 @@ dependencies = [
  "log",
  "serde_json",
  "tempfile",
- "tinybus 0.1.6 (git+https://github.com/senamakel/tinybus?rev=1d0aa34104c84f6817f398b0abe164df6c5e7b82)",
+ "tinybus",
  "tinybus-module",
  "tinyjuice",
  "tinyjuice-bus",
@@ -1630,7 +1609,7 @@ source = "git+https://github.com/senamakel/tinystoragedrivers?rev=8a8bd701cc497a
 dependencies = [
  "serde",
  "serde_json",
- "tinybus 0.1.6 (git+https://github.com/senamakel/tinybus?rev=24ec2ccafcc98fab35fa10ffcbcefa87eb32e3e8)",
+ "tinybus",
  "tinystoragedrivers-types",
 ]
 
@@ -1644,7 +1623,7 @@ dependencies = [
  "futures-core",
  "serde",
  "serde_json",
- "tinybus 0.1.6 (git+https://github.com/senamakel/tinybus?rev=24ec2ccafcc98fab35fa10ffcbcefa87eb32e3e8)",
+ "tinybus",
  "tinystoragedrivers-api",
  "tinystoragedrivers-bus",
  "tinystoragedrivers-types",
