@@ -13,7 +13,7 @@ use tinyjuice_bus::savings::{
     RecordSavingsRequest, SAVINGS_DOC_ID, SavingsAggregate, StoredSavings,
 };
 use tinyjuice_bus::storage::SAVINGS_COLLECTION;
-use tinystoragedrivers_api::{DocumentStore, DocumentStoreExt};
+use tinystoragedrivers_api::{DocumentStore, DocumentStoreExt, Storage};
 use tinystoragedrivers_types::Precondition;
 
 /// Working state behind one lock, so load, change and write never interleave.
@@ -105,6 +105,54 @@ impl Savings {
             self.ledger.replace(previous);
             return Err(tinybus::Error::failed("savings could not be written"));
         }
+        Ok(true)
+    }
+
+    /// Adopt a legacy snapshot through a storage handle supplied for this one
+    /// call. This handle is deliberately not cached in `State`: hosts use it
+    /// for claim-bound imports, and its authority ends when the call returns.
+    pub(crate) async fn import_at(
+        &self,
+        storage: &Storage,
+        legacy: SavingsAggregate,
+    ) -> BusResult<bool> {
+        let mut state = self.state.lock().await;
+        let docs = storage.documents();
+        let stored = docs
+            .get_as::<StoredSavings>(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
+            .await
+            .map_err(|error| tinybus::Error::failed(format!("savings could not be read: {error}")))?;
+        if stored.is_some_and(|stored| stored.doc.total.events != 0)
+            || self.ledger.stats().total.events != 0
+        {
+            log::debug!("[tinyjuice_module][savings] import skipped: totals exist");
+            return Ok(false);
+        }
+
+        let previous = self.ledger.stats();
+        self.ledger.replace(legacy);
+        let body = StoredSavings::from_aggregate(&self.ledger.stats(), now_ms());
+        if let Err(error) = docs
+            .put_as(
+                SAVINGS_COLLECTION,
+                SAVINGS_DOC_ID,
+                &body,
+                Precondition::None,
+            )
+            .await
+        {
+            self.ledger.replace(previous);
+            return Err(tinybus::Error::failed(format!(
+                "savings could not be written: {error}"
+            )));
+        }
+
+        // The document is now authoritative, even if this module has not yet
+        // connected its ordinary long-lived storage port. Do not retain the
+        // invocation-scoped handle in `state.docs`.
+        state.loaded = true;
+        state.dirty = false;
+        state.reset_early = false;
         Ok(true)
     }
 
