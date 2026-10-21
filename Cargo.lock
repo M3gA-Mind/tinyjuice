@@ -2323,3 +2323,51 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
+
+[[patch.unused]]
+name = "tinystoragedrivers"
+version = "2.1.0"
+
+[[patch.unused]]
+name = "tinystoragedrivers-api"
+version = "2.1.0"
+
+[[patch.unused]]
+name = "tinystoragedrivers-blob"
+version = "2.1.0"
+
+[[patch.unused]]
+name = "tinystoragedrivers-bus"
+version = "2.1.0"
+
+[[patch.unused]]
+name = "tinystoragedrivers-busproxy"
+version = "2.1.0"
+
+[[patch.unused]]
+name = "tinystoragedrivers-connect"
+version = "2.1.0"
+
+[[patch.unused]]
+name = "tinystoragedrivers-document"
+version = "2.1.0"
+
+[[patch.unused]]
+name = "tinystoragedrivers-kv"
+version = "2.1.0"
+
+[[patch.unused]]
+name = "tinystoragedrivers-queue"
+version = "2.1.0"
+
+[[patch.unused]]
+name = "tinystoragedrivers-secrets"
+version = "2.1.0"
+
+[[patch.unused]]
+name = "tinystoragedrivers-testkit"
+version = "2.1.0"
+
+[[patch.unused]]
+name = "tinystoragedrivers-types"
+version = "2.1.0"
