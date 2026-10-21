@@ -74,6 +74,37 @@ fn the_wire_envelopes_keep_their_json_contract() {
 }
 
 #[test]
+fn request_local_savings_import_address_is_a_transport_only_descriptor() {
+    use savings::{ImportSavingsAtRequest, SavingsAggregate, StorageCallbackAddress};
+
+    let request = ImportSavingsAtRequest {
+        aggregate: SavingsAggregate::default(),
+        callback: StorageCallbackAddress {
+            host: ":1.42".to_owned(),
+            object_root: "/ai/tinyhumans/tinystorage/Invocation/abc".to_owned(),
+        },
+    };
+    let encoded = serde_json::to_value(&request).unwrap();
+    assert_eq!(encoded["callback"]["host"], ":1.42");
+    assert_eq!(
+        encoded["callback"]["object_root"],
+        "/ai/tinyhumans/tinystorage/Invocation/abc"
+    );
+    let decoded: ImportSavingsAtRequest = serde_json::from_value(encoded.clone()).unwrap();
+    assert_eq!(decoded.callback.host, ":1.42");
+    assert_eq!(
+        decoded.callback.object_root,
+        "/ai/tinyhumans/tinystorage/Invocation/abc"
+    );
+    assert!(serde_json::from_value::<ImportSavingsAtRequest>({
+        let mut value = encoded;
+        value["callback"]["write_condition"] = serde_json::json!("must-not-cross-the-bus");
+        value
+    })
+    .is_err());
+}
+
+#[test]
 fn compress_options_round_trip_through_their_defaults() {
     // `CompressOptions` is `#[serde(default)]`, which is what lets a host send
     // only the knobs it cares about. That only holds if every field has a
