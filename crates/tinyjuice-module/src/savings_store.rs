@@ -113,10 +113,17 @@ impl Savings {
     /// for claim-bound imports, and its authority ends when the call returns.
     pub(crate) async fn import_at(
         &self,
+        connection: Option<&Connection>,
         storage: &Storage,
         legacy: SavingsAggregate,
     ) -> BusResult<bool> {
         let mut state = self.state.lock().await;
+        self.load(&mut state, connection).await;
+        if !state.loaded || state.docs.is_none() {
+            return Err(tinybus::Error::failed(
+                "savings storage is not readable yet",
+            ));
+        }
         let docs = storage.documents();
         let stored = docs
             .get_as::<StoredSavings>(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
@@ -156,9 +163,8 @@ impl Savings {
             )));
         }
 
-        // The document is now authoritative, even if this module has not yet
-        // connected its ordinary long-lived storage port. Do not retain the
-        // invocation-scoped handle in `state.docs`.
+        // The document is now authoritative through the ordinary port already
+        // held by this state. Never retain the invocation-scoped handle.
         state.loaded = true;
         state.dirty = false;
         state.reset_early = false;

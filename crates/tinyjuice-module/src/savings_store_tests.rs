@@ -237,7 +237,7 @@ async fn request_local_import_refusal_leaves_the_cached_ledger_unchanged() {
         ..Default::default()
     };
 
-    let failed = savings.import_at(&callback_storage, legacy).await;
+    let failed = savings.import_at(None, &callback_storage, legacy).await;
     assert!(failed.is_err());
     assert_eq!(savings.stats(None).await.total.events, 0);
     assert!(ordinary
@@ -288,7 +288,10 @@ async fn request_local_import_uses_the_call_storage_without_caching_it() {
         ..Default::default()
     };
 
-    assert!(savings.import_at(&callback_storage, legacy).await.unwrap());
+    assert!(savings
+        .import_at(None, &callback_storage, legacy)
+        .await
+        .unwrap());
     assert_eq!(
         ordinary_docs
             .get(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
