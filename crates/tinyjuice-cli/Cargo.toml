@@ -27,6 +27,7 @@ tinystoragedrivers-testkit = { version = "2.0.2", git = "https://github.com/sena
 [[bin]]
 name = "tinyjuice"
 path = "src/bin/tinyjuice.rs"
+doc = false
 
 [[bin]]
 name = "tinyjuice-reduce"
