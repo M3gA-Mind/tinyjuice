@@ -208,10 +208,7 @@ async fn request_local_import_refusal_leaves_the_cached_ledger_unchanged() {
     let callback = backend.for_scope(&Scope::new("callback").unwrap()).unwrap();
     let faults = FaultPlan::new();
     faults.fail_operation_nth("documents.put", 1, ErrorKind::Unavailable);
-    let callback_docs = Arc::new(Failing::with_plan(
-        Arc::clone(callback.documents()),
-        faults,
-    ));
+    let callback_docs = Arc::new(Failing::with_plan(Arc::clone(callback.documents()), faults));
     let callback_storage = tinystoragedrivers_api::Storage::new(
         callback_docs.clone(),
         Arc::clone(callback.streams()),
@@ -240,18 +237,22 @@ async fn request_local_import_refusal_leaves_the_cached_ledger_unchanged() {
     let failed = savings.import_at(None, &callback_storage, legacy).await;
     assert!(failed.is_err());
     assert_eq!(savings.stats(None).await.total.events, 0);
-    assert!(ordinary
-        .documents()
-        .get(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
-        .await
-        .unwrap()
-        .is_none());
-    assert!(callback
-        .documents()
-        .get(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        ordinary
+            .documents()
+            .get(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        callback
+            .documents()
+            .get(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[tokio::test]
@@ -288,10 +289,12 @@ async fn request_local_import_uses_the_call_storage_without_caching_it() {
         ..Default::default()
     };
 
-    assert!(savings
-        .import_at(None, &callback_storage, legacy)
-        .await
-        .unwrap());
+    assert!(
+        savings
+            .import_at(None, &callback_storage, legacy)
+            .await
+            .unwrap()
+    );
     assert_eq!(
         ordinary_docs
             .get(SAVINGS_COLLECTION, SAVINGS_DOC_ID)

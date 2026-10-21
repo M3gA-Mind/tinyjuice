@@ -128,7 +128,9 @@ impl Savings {
         let stored = docs
             .get_as::<StoredSavings>(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
             .await
-            .map_err(|error| tinybus::Error::failed(format!("savings could not be read: {error}")))?;
+            .map_err(|error| {
+                tinybus::Error::failed(format!("savings could not be read: {error}"))
+            })?;
         if stored
             .as_ref()
             .is_some_and(|stored| stored.doc.total.events != 0)
@@ -149,12 +151,7 @@ impl Savings {
         self.ledger.replace(legacy);
         let body = StoredSavings::from_aggregate(&self.ledger.stats(), now_ms());
         if let Err(error) = docs
-            .put_as(
-                SAVINGS_COLLECTION,
-                SAVINGS_DOC_ID,
-                &body,
-                precondition,
-            )
+            .put_as(SAVINGS_COLLECTION, SAVINGS_DOC_ID, &body, precondition)
             .await
         {
             self.ledger.replace(previous);
