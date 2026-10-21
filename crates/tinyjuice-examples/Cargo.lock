@@ -1789,7 +1789,7 @@ dependencies = [
 
 [[package]]
 name = "tinyjuice"
-version = "0.10.4"
+version = "0.11.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1818,11 +1818,12 @@ dependencies = [
 
 [[package]]
 name = "tinyjuice-bus"
-version = "0.10.4"
+version = "0.11.0"
 dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tinystoragedrivers-types",
 ]
 
 [[package]]
@@ -1872,6 +1873,16 @@ dependencies = [
  "windows-permissions",
  "winsafe",
  "zeroize",
+]
+
+[[package]]
+name = "tinystoragedrivers-types"
+version = "2.0.2"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.2#7acd22d8e8061edf7ef8cc4976c666b198a203c7"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]
