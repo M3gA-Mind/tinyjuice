@@ -1560,8 +1560,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers"
-version = "2.0.2"
-source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.2#7acd22d8e8061edf7ef8cc4976c666b198a203c7"
+version = "2.1.0"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.1.0#3332061434c01872b0161191268166c12563af87"
 dependencies = [
  "tinystoragedrivers-api",
  "tinystoragedrivers-blob",
@@ -1575,8 +1575,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-api"
-version = "2.0.2"
-source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.2#7acd22d8e8061edf7ef8cc4976c666b198a203c7"
+version = "2.1.0"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.1.0#3332061434c01872b0161191268166c12563af87"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1589,8 +1589,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-blob"
-version = "2.0.2"
-source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.2#7acd22d8e8061edf7ef8cc4976c666b198a203c7"
+version = "2.1.0"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.1.0#3332061434c01872b0161191268166c12563af87"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1604,8 +1604,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-bus"
-version = "2.0.2"
-source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.2#7acd22d8e8061edf7ef8cc4976c666b198a203c7"
+version = "2.1.0"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.1.0#3332061434c01872b0161191268166c12563af87"
 dependencies = [
  "serde",
  "serde_json",
@@ -1615,8 +1615,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-busproxy"
-version = "2.0.2"
-source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.2#7acd22d8e8061edf7ef8cc4976c666b198a203c7"
+version = "2.1.0"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.1.0#3332061434c01872b0161191268166c12563af87"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1633,18 +1633,20 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-connect"
-version = "2.0.2"
-source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.2#7acd22d8e8061edf7ef8cc4976c666b198a203c7"
+version = "2.1.0"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.1.0#3332061434c01872b0161191268166c12563af87"
 dependencies = [
  "rusqlite",
+ "serde_json",
  "tinystoragedrivers-types",
  "tokio",
+ "zstd",
 ]
 
 [[package]]
 name = "tinystoragedrivers-document"
-version = "2.0.2"
-source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.2#7acd22d8e8061edf7ef8cc4976c666b198a203c7"
+version = "2.1.0"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.1.0#3332061434c01872b0161191268166c12563af87"
 dependencies = [
  "async-trait",
  "data-encoding",
@@ -1662,8 +1664,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-kv"
-version = "2.0.2"
-source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.2#7acd22d8e8061edf7ef8cc4976c666b198a203c7"
+version = "2.1.0"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.1.0#3332061434c01872b0161191268166c12563af87"
 dependencies = [
  "async-trait",
  "libc",
@@ -1676,8 +1678,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-queue"
-version = "2.0.2"
-source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.2#7acd22d8e8061edf7ef8cc4976c666b198a203c7"
+version = "2.1.0"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.1.0#3332061434c01872b0161191268166c12563af87"
 dependencies = [
  "async-trait",
  "data-encoding",
@@ -1692,8 +1694,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-secrets"
-version = "2.0.2"
-source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.2#7acd22d8e8061edf7ef8cc4976c666b198a203c7"
+version = "2.1.0"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.1.0#3332061434c01872b0161191268166c12563af87"
 dependencies = [
  "async-trait",
  "tinystoragedrivers-api",
@@ -1703,8 +1705,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-testkit"
-version = "2.0.2"
-source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.2#7acd22d8e8061edf7ef8cc4976c666b198a203c7"
+version = "2.1.0"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.1.0#3332061434c01872b0161191268166c12563af87"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1724,8 +1726,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-types"
-version = "2.0.2"
-source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.0.2#7acd22d8e8061edf7ef8cc4976c666b198a203c7"
+version = "2.1.0"
+source = "git+https://github.com/senamakel/tinystoragedrivers?tag=v2.1.0#3332061434c01872b0161191268166c12563af87"
 dependencies = [
  "serde",
  "serde_json",
