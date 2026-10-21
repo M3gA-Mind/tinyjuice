@@ -31,9 +31,7 @@ impl Blocking {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
-            .map_err(|error| {
-                StorageError::backend("cannot build the storage bridge runtime").with_source(error)
-            })?;
+            .map_err(runtime_build_error)?;
         thread::Builder::new()
             .name("tinyjuice-storage-bridge".into())
             .spawn(move || {
@@ -42,9 +40,7 @@ impl Blocking {
                     job(&runtime);
                 }
             })
-            .map_err(|error| {
-                StorageError::backend("cannot start the storage bridge").with_source(error)
-            })?;
+            .map_err(thread_start_error)?;
         Ok(Self { jobs })
     }
 
@@ -66,3 +62,15 @@ impl Blocking {
             .map_err(|_| StorageError::backend("storage bridge dropped a call"))
     }
 }
+
+fn runtime_build_error(error: std::io::Error) -> StorageError {
+    StorageError::backend("cannot build the storage bridge runtime").with_source(error)
+}
+
+fn thread_start_error(error: std::io::Error) -> StorageError {
+    StorageError::backend("cannot start the storage bridge").with_source(error)
+}
+
+#[cfg(test)]
+#[path = "blocking_tests.rs"]
+mod tests;

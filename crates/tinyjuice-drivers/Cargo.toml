@@ -1,5 +1,5 @@
 [package]
-rust-version = "1.88"
+rust-version = "1.90"
 name = "tinyjuice-drivers"
 version = "0.9.0"
 edition = "2024"

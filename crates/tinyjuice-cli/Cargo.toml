@@ -2,7 +2,7 @@
 name = "tinyjuice-cli"
 version = "0.11.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.90"
 publish = false
 license = "GPL-3.0-only"
 description = "Standalone TinyJuice command-line tools."

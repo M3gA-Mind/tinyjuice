@@ -1,5 +1,5 @@
 [package]
-rust-version = "1.88"
+rust-version = "1.90"
 name = "tinyjuice"
 version = "0.11.0"
 edition = "2024"
@@ -14,7 +14,6 @@ exclude = [
     ".github/",
     ".gitmodules",
     "docs/",
-    "vendor/tinybus/",
     "vendor/tinyagents/",
     "crates/tinyjuice-examples/",
     "wiki/",
@@ -23,7 +22,7 @@ exclude = [
 [workspace]
 members = ["crates/tinyjuice-bus", "crates/tinyjuice-module", "crates/tinyjuice-drivers", "crates/tinyjuice-cli"]
 default-members = [".", "crates/tinyjuice-bus", "crates/tinyjuice-module", "crates/tinyjuice-drivers", "crates/tinyjuice-cli"]
-exclude = ["vendor/tinybus", "vendor/tinyagents", "crates/tinyjuice-examples"]
+exclude = ["vendor/tinyagents", "crates/tinyjuice-examples"]
 resolver = "3"
 
 [dependencies]

@@ -18,8 +18,11 @@ lockfile was changed. Reproduce from the native repository root with:
 ```sh
 mkdir -p target/legacy-writer-v0.10.10
 git archive --format=tar 4db24354d0e883f6a0aefe96e5cc0c76073fd76e | tar -x -C target/legacy-writer-v0.10.10
-mkdir -p target/legacy-writer-v0.10.10/vendor/tinybus target/legacy-writer-v0.10.10/vendor/tinyagents target/legacy-writer-v0.10.10/examples target/legacy-writer-v0.10.10/legacy-output
-git -C vendor/tinybus archive 207a9a7df15e44fdba00a807d0f7eaf21904ba0e | tar -x -C target/legacy-writer-v0.10.10/vendor/tinybus
+mkdir -p target/legacy-writer-v0.10.10/vendor/tinybus target/legacy-writer-v0.10.10/vendor/tinyagents target/legacy-writer-v0.10.10/examples target/legacy-writer-v0.10.10/legacy-output target/legacy-source-cache/tinybus
+git -C target/legacy-source-cache/tinybus init
+git -C target/legacy-source-cache/tinybus fetch --depth=1 https://github.com/tinyhumansai/tinybus.git 207a9a7df15e44fdba00a807d0f7eaf21904ba0e
+git -C target/legacy-source-cache/tinybus checkout --detach FETCH_HEAD
+git -C target/legacy-source-cache/tinybus archive 207a9a7df15e44fdba00a807d0f7eaf21904ba0e | tar -x -C target/legacy-writer-v0.10.10/vendor/tinybus
 git -C vendor/tinyagents archive aa5476fa48092d9bf051fbd2d1bf07f14cc9f331 | tar -x -C target/legacy-writer-v0.10.10/vendor/tinyagents
 cp crates/tinyjuice-cli/tests/fixtures/legacy-ccr/v0.10.10/write_ccr_fixture.rs target/legacy-writer-v0.10.10/examples/
 cargo run --locked --manifest-path target/legacy-writer-v0.10.10/Cargo.toml -p tinyjuice --example write_ccr_fixture -- target/legacy-writer-v0.10.10/legacy-output "Fixture written by TinyJuice v0.10.10 public disk-tier API."

@@ -1,5 +1,5 @@
 use super::*;
-use tinyjuice::cache::CcrStore;
+use tinyjuice::cache::{CcrStore, RangeUnit};
 use tinystoragedrivers_api::BlobStore;
 use tinystoragedrivers_testkit::FaultPlan;
 use tinystoragedrivers_types::{
@@ -77,6 +77,184 @@ fn collection_reports_bytes_removed_by_the_budget() {
     assert!(store.put("second").retained());
 
     assert_eq!(collect(dir.path(), None, Some(0)).unwrap(), (2, 11, 0, 0));
+}
+
+#[test]
+fn configure_and_inventory_report_invalid_storage_paths() {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("missing");
+    let inventory_error = match inventory(&missing, None) {
+        Err(error) => error,
+        Ok(_) => panic!("missing storage directory unexpectedly inventoried"),
+    };
+    assert!(inventory_error.contains("does not exist"));
+
+    let file_path = dir.path().join("not-a-directory");
+    std::fs::write(&file_path, "file").unwrap();
+    let configure_error = configure(&file_path, None, None).unwrap_err();
+    assert!(configure_error.contains("cannot create CCR storage directory"));
+    let import_error =
+        import_legacy_files(&file_path, &open_file_blobs(dir.path()).unwrap(), None).unwrap_err();
+    assert!(import_error.contains("failed to inspect legacy CCR directory"));
+}
+
+#[test]
+fn inventory_counts_ignored_entries_and_returns_imported_blobs() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("not-a-token"), "ignored").unwrap();
+    std::fs::create_dir(dir.path().join("nested")).unwrap();
+    let content = "inventory imports the valid legacy entry";
+    let token = tinyjuice::cache::short_hash(content);
+    std::fs::write(dir.path().join(&token), content).unwrap();
+
+    let result = inventory(dir.path(), None).unwrap();
+
+    assert_eq!(result.ignored_entries, 2);
+    assert_eq!(result.entries.len(), 1);
+    assert_eq!(result.entries[0].key, format!("{CCR_PREFIX}/{token}"));
+    assert_eq!(
+        BlobCcrStore::new(open_file_blobs(dir.path()).unwrap(), None)
+            .unwrap()
+            .get(&token)
+            .as_deref(),
+        Some(content)
+    );
+}
+
+#[test]
+fn import_skips_directories_and_unrecognized_names_and_removes_expired_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let nested = dir.path().join("nested");
+    std::fs::create_dir(&nested).unwrap();
+    std::fs::write(nested.join("entry"), "not a top-level CCR").unwrap();
+    let unrecognized = dir.path().join("not-a-token");
+    std::fs::write(&unrecognized, "unrecognized").unwrap();
+
+    let content = "already expired legacy content";
+    let token = tinyjuice::cache::short_hash(content);
+    let expired = dir.path().join(&token);
+    std::fs::write(&expired, content).unwrap();
+    std::fs::File::open(&expired)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(SystemTime::UNIX_EPOCH))
+        .unwrap();
+    let blobs = open_file_blobs(dir.path()).unwrap();
+
+    import_legacy_files(dir.path(), &blobs, Some(Duration::from_secs(1))).unwrap();
+
+    assert!(!expired.exists());
+    assert!(unrecognized.exists());
+    assert!(nested.join("entry").exists());
+    assert!(
+        BlobCcrStore::new(blobs, None)
+            .unwrap()
+            .get(&token)
+            .is_none()
+    );
+}
+
+#[test]
+fn import_uses_an_existing_backend_write_time_without_sidecars() {
+    let dir = tempfile::tempdir().unwrap();
+    let content = "the already published backend body is newer";
+    let token = tinyjuice::cache::short_hash(content);
+    let source = dir.path().join(&token);
+    std::fs::write(&source, content).unwrap();
+    let source_time = SystemTime::now() - Duration::from_secs(60);
+    std::fs::File::open(&source)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(source_time))
+        .unwrap();
+    let blobs = open_file_blobs(dir.path()).unwrap();
+    let existing = BlobCcrStore::new(Arc::clone(&blobs), None).unwrap();
+    assert!(existing.put(content).retained());
+    let backend_time = backend_written_at(Arc::clone(&blobs), &format!("{CCR_PREFIX}/{token}"))
+        .unwrap()
+        .unwrap();
+
+    import_legacy_files(dir.path(), &blobs, None).unwrap();
+
+    assert!(!source.exists());
+    assert_eq!(
+        read_semantic_time(blobs, &token).unwrap(),
+        Some(backend_time.max(unix_epoch_ms(source_time)))
+    );
+}
+
+#[test]
+fn capped_store_delegates_byte_ranges_to_the_durable_store() {
+    let dir = tempfile::tempdir().unwrap();
+    let blobs = open_file_blobs(dir.path()).unwrap();
+    let store = CappedCcrStore {
+        store: BlobCcrStore::new(Arc::clone(&blobs), None).unwrap(),
+        blobs,
+        ttl: None,
+        max_bytes: None,
+    };
+    let put = store.put("abcdefgh");
+
+    assert_eq!(
+        store
+            .get_range(put.token(), 2, 5, RangeUnit::Bytes)
+            .as_deref(),
+        Some("cde")
+    );
+}
+
+#[test]
+fn timestamp_listing_ignores_non_tokens_and_rejects_malformed_values() {
+    let dir = tempfile::tempdir().unwrap();
+    let blobs = open_file_blobs(dir.path()).unwrap();
+    run_blob({
+        let blobs = Arc::clone(&blobs);
+        async move {
+            blobs
+                .put(
+                    &format!("{CCR_METADATA_PREFIX}not-a-token"),
+                    b"not a timestamp".to_vec(),
+                    None,
+                )
+                .await
+        }
+    })
+    .unwrap();
+    assert!(list_semantic_times(Arc::clone(&blobs)).unwrap().is_empty());
+
+    let token = "0123456789abcdef0123456789abcdef";
+    run_blob({
+        let blobs = Arc::clone(&blobs);
+        async move {
+            blobs
+                .put(&format!("{CCR_METADATA_PREFIX}{token}"), vec![0xff], None)
+                .await
+        }
+    })
+    .unwrap();
+    assert!(
+        read_semantic_time(blobs, token)
+            .unwrap_err()
+            .contains("invalid CCR timestamp")
+    );
+}
+
+#[test]
+fn deleting_a_non_ccr_blob_does_not_touch_ccr_metadata() {
+    let dir = tempfile::tempdir().unwrap();
+    let blobs = open_file_blobs(dir.path()).unwrap();
+    let key = "unrelated/object";
+    run_blob({
+        let blobs = Arc::clone(&blobs);
+        async move { blobs.put(key, b"data".to_vec(), None).await }
+    })
+    .unwrap();
+
+    delete_blob_and_metadata(Arc::clone(&blobs), key).unwrap();
+
+    assert!(
+        run_blob(async move { blobs.get(key).await })
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[test]
