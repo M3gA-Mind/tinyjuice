@@ -471,7 +471,9 @@ async fn import_savings_at_uses_only_its_request_scoped_storage_address() {
 async fn import_savings_at_rejects_non_unique_hosts_and_non_invocation_roots() {
     use tinybus::broker::Broker;
     use tinybus::transport::memory::MemoryBus;
-    use tinyjuice_bus::savings::{ImportSavingsAtRequest, SavingsAggregate, StorageCallbackAddress};
+    use tinyjuice_bus::savings::{
+        ImportSavingsAtRequest, SavingsAggregate, StorageCallbackAddress,
+    };
 
     let bus = MemoryBus::new();
     let broker_task = Broker::new().spawn(bus.clone());

@@ -96,12 +96,14 @@ fn request_local_savings_import_address_is_a_transport_only_descriptor() {
         decoded.callback.object_root,
         "/ai/tinyhumans/tinystorage/Invocation/abc"
     );
-    assert!(serde_json::from_value::<ImportSavingsAtRequest>({
-        let mut value = encoded;
-        value["callback"]["write_condition"] = serde_json::json!("must-not-cross-the-bus");
-        value
-    })
-    .is_err());
+    assert!(
+        serde_json::from_value::<ImportSavingsAtRequest>({
+            let mut value = encoded;
+            value["callback"]["write_condition"] = serde_json::json!("must-not-cross-the-bus");
+            value
+        })
+        .is_err()
+    );
 }
 
 #[test]
