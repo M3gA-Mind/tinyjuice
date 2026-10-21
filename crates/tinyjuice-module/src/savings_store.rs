@@ -122,12 +122,21 @@ impl Savings {
             .get_as::<StoredSavings>(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
             .await
             .map_err(|error| tinybus::Error::failed(format!("savings could not be read: {error}")))?;
-        if stored.is_some_and(|stored| stored.doc.total.events != 0)
+        if stored
+            .as_ref()
+            .is_some_and(|stored| stored.doc.total.events != 0)
             || self.ledger.stats().total.events != 0
         {
             log::debug!("[tinyjuice_module][savings] import skipped: totals exist");
             return Ok(false);
         }
+
+        // Import is a read-modify-write operation. Preserve the observed
+        // document version (or absence) so a concurrent normal savings write
+        // cannot be overwritten by this legacy snapshot.
+        let precondition = stored.map_or(Precondition::Absent, |stored| {
+            Precondition::Version(stored.version)
+        });
 
         let previous = self.ledger.stats();
         self.ledger.replace(legacy);
@@ -137,7 +146,7 @@ impl Savings {
                 SAVINGS_COLLECTION,
                 SAVINGS_DOC_ID,
                 &body,
-                Precondition::None,
+                precondition,
             )
             .await
         {
