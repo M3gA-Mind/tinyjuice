@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn the_contract_accepts_newer_minors_and_rejects_the_breaking_v2_contract() {
-    assert_eq!(CONTRACT_VERSION, (3, 0));
+    assert_eq!(CONTRACT_VERSION, (3, 1));
     assert!(is_compatible(CONTRACT_VERSION));
     assert!(is_compatible((3, 1)));
     assert!(
