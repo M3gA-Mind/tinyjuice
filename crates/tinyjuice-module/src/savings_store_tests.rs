@@ -200,3 +200,56 @@ async fn an_import_whose_write_fails_is_an_error_leaves_totals_alone_and_can_ret
     let stored = flaky.get(SAVINGS_COLLECTION, SAVINGS_DOC_ID).await.unwrap();
     assert_eq!(stored.unwrap().doc["total"]["events"], 3);
 }
+
+#[tokio::test]
+async fn request_local_import_refusal_leaves_the_cached_ledger_unchanged() {
+    let backend = tinystoragedrivers_testkit::memory_backend();
+    let ordinary = backend.for_scope(&Scope::new("ordinary").unwrap()).unwrap();
+    let callback = backend.for_scope(&Scope::new("callback").unwrap()).unwrap();
+    let faults = FaultPlan::new();
+    faults.fail_operation_nth("documents.put", 1, ErrorKind::Unavailable);
+    let callback_docs = Arc::new(Failing::with_plan(
+        Arc::clone(callback.documents()),
+        faults,
+    ));
+    let callback_storage = tinystoragedrivers_api::Storage::new(
+        callback_docs.clone(),
+        Arc::clone(callback.streams()),
+        Arc::clone(callback.kv()),
+        Arc::clone(callback.blobs()),
+        Arc::clone(callback.queues()),
+        Arc::clone(callback.secrets()),
+    );
+    let savings = Savings::new();
+    {
+        let mut state = savings.state.lock().await;
+        state.docs = Some(Arc::clone(ordinary.documents()));
+        state.loaded = true;
+    }
+    let legacy = SavingsAggregate {
+        total: SavingsBucket {
+            events: 3,
+            original_tokens: 30,
+            compacted_tokens: 10,
+            tokens_saved: 20,
+            cost_saved_usd: 0.1,
+        },
+        ..Default::default()
+    };
+
+    let failed = savings.import_at(&callback_storage, legacy).await;
+    assert!(failed.is_err());
+    assert_eq!(savings.stats(None).await.total.events, 0);
+    assert!(ordinary
+        .documents()
+        .get(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
+        .await
+        .unwrap()
+        .is_none());
+    assert!(callback
+        .documents()
+        .get(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
+        .await
+        .unwrap()
+        .is_none());
+}
