@@ -466,3 +466,41 @@ async fn import_savings_at_uses_only_its_request_scoped_storage_address() {
     );
     broker_task.abort();
 }
+
+#[tokio::test]
+async fn import_savings_at_rejects_non_unique_hosts_and_non_invocation_roots() {
+    use tinybus::broker::Broker;
+    use tinybus::transport::memory::MemoryBus;
+    use tinyjuice_bus::savings::{ImportSavingsAtRequest, SavingsAggregate, StorageCallbackAddress};
+
+    let bus = MemoryBus::new();
+    let broker_task = Broker::new().spawn(bus.clone());
+    let module = Connection::connect(bus.connect().await.unwrap())
+        .await
+        .unwrap();
+    let savings = crate::savings_store::Savings::new();
+
+    let invalid_addresses = [
+        StorageCallbackAddress {
+            host: "ai.example.Storage".into(),
+            object_root: "/ai/tinyhumans/tinystorage/Invocation/import-1".into(),
+        },
+        StorageCallbackAddress {
+            host: ":1.7".into(),
+            object_root: "/ai/tinyhumans/tinystorage/Other/import-1".into(),
+        },
+    ];
+    for callback in invalid_addresses {
+        let result = import_savings_at(
+            &savings,
+            Some(&module),
+            ImportSavingsAtRequest {
+                aggregate: SavingsAggregate::default(),
+                callback,
+            },
+        )
+        .await;
+        assert!(result.is_err(), "invalid destination must be rejected");
+    }
+    broker_task.abort();
+}
