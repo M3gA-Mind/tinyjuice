@@ -133,6 +133,28 @@ fn collection_reports_expired_legacy_entries() {
 }
 
 #[test]
+fn collection_reports_expired_backend_blobs_pruned_during_configuration() {
+    let dir = tempfile::tempdir().unwrap();
+    let blobs = open_file_blobs(dir.path()).unwrap();
+    let content = "expired backend content swept during configuration";
+    let store = BlobCcrStore::new(Arc::clone(&blobs), None).unwrap();
+    let put = store.put(content);
+    assert!(put.retained());
+    write_semantic_time(
+        Arc::clone(&blobs),
+        put.token(),
+        unix_epoch_ms(SystemTime::now() - Duration::from_secs(60)),
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(
+        collect(dir.path(), Some(Duration::from_secs(1)), None).unwrap(),
+        (1, content.len() as u64, 0, 0)
+    );
+}
+
+#[test]
 fn collection_removes_and_reports_non_utf8_legacy_entries() {
     let dir = tempfile::tempdir().unwrap();
     let token = "fedcba9876543210fedcba9876543210";
