@@ -30,6 +30,14 @@ pub(crate) fn configure(
     ttl: Option<Duration>,
     max_bytes: Option<u64>,
 ) -> Result<(), String> {
+    configure_with_report(root, ttl, max_bytes).map(|_| ())
+}
+
+fn configure_with_report(
+    root: &Path,
+    ttl: Option<Duration>,
+    max_bytes: Option<u64>,
+) -> Result<(usize, u64), String> {
     std::fs::create_dir_all(root).map_err(|error| {
         format!(
             "cannot create CCR storage directory {}: {error}",
@@ -37,7 +45,7 @@ pub(crate) fn configure(
         )
     })?;
     let blobs = open_file_blobs(root)?;
-    import_legacy_files(root, &blobs, ttl)?;
+    let discarded_legacy = import_legacy_files(root, &blobs, ttl)?;
     let store = BlobCcrStore::new(Arc::clone(&blobs), ttl).map_err(|error| error.to_string())?;
     let capped = CappedCcrStore {
         store,
@@ -49,7 +57,7 @@ pub(crate) fn configure(
         prune(&blobs, ttl, max_bytes, None)?;
     }
     set_durable_tier(Some(Arc::new(capped)));
-    Ok(())
+    Ok(discarded_legacy)
 }
 
 #[allow(dead_code)] // The reducer binary uses inventory; the hook binary shares this module.
@@ -118,9 +126,15 @@ pub(crate) fn collect(
     ttl: Option<Duration>,
     max_bytes: Option<u64>,
 ) -> Result<(usize, u64, usize, u64), String> {
-    configure(root, ttl, None)?;
+    let (legacy_removed, legacy_bytes) = configure_with_report(root, ttl, None)?;
     let blobs = open_file_blobs(root)?;
-    prune(&blobs, ttl, max_bytes, None)
+    let (removed, freed, kept, kept_bytes) = prune(&blobs, ttl, max_bytes, None)?;
+    Ok((
+        legacy_removed.saturating_add(removed),
+        legacy_bytes.saturating_add(freed),
+        kept,
+        kept_bytes,
+    ))
 }
 
 fn prune(
@@ -224,7 +238,9 @@ fn import_legacy_files(
     root: &Path,
     blobs: &Arc<dyn BlobStore>,
     ttl: Option<Duration>,
-) -> Result<(), String> {
+) -> Result<(usize, u64), String> {
+    let mut discarded_corrupt = 0_usize;
+    let mut discarded_bytes = 0_u64;
     let entries = std::fs::read_dir(root).map_err(|error| {
         format!(
             "failed to inspect legacy CCR directory {}: {error}",
@@ -254,6 +270,17 @@ fn import_legacy_files(
         };
         if tinyjuice::cache::short_hash(&content) != token {
             log::warn!("[tinyjuice_cli] skipping legacy CCR entry {token}: content hash mismatch");
+            let size = entry
+                .metadata()
+                .map_err(|error| {
+                    format!("cannot inspect corrupt legacy CCR entry {token}: {error}")
+                })?
+                .len();
+            std::fs::remove_file(entry.path()).map_err(|error| {
+                format!("cannot remove corrupt legacy CCR entry {token}: {error}")
+            })?;
+            discarded_corrupt = discarded_corrupt.saturating_add(1);
+            discarded_bytes = discarded_bytes.saturating_add(size);
             continue;
         }
         let modified = entry
@@ -333,7 +360,7 @@ fn import_legacy_files(
         std::fs::remove_file(entry.path())
             .map_err(|error| format!("cannot remove imported CCR entry {token}: {error}"))?;
     }
-    Ok(())
+    Ok((discarded_corrupt, discarded_bytes))
 }
 
 fn remaining_ttl(modified: SystemTime, now: SystemTime, ttl: Duration) -> Option<Duration> {

@@ -90,7 +90,10 @@ fn collection_removes_and_reports_corrupt_legacy_entries() {
     let result = collect(dir.path(), None, Some(0)).unwrap();
 
     assert_eq!(result, (1, corrupt_content.len() as u64, 0, 0));
-    assert!(!path.exists(), "garbage collection removes the corrupt file");
+    assert!(
+        !path.exists(),
+        "garbage collection removes the corrupt file"
+    );
 }
 
 #[test]
