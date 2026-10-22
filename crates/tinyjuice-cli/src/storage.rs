@@ -37,7 +37,7 @@ fn configure_with_report(
     root: &Path,
     ttl: Option<Duration>,
     max_bytes: Option<u64>,
-) -> Result<(usize, u64), String> {
+) -> Result<((usize, u64), (usize, u64, usize, u64)), String> {
     std::fs::create_dir_all(root).map_err(|error| {
         format!(
             "cannot create CCR storage directory {}: {error}",
@@ -53,11 +53,13 @@ fn configure_with_report(
         ttl,
         max_bytes,
     };
-    if ttl.is_some() || max_bytes.is_some() {
-        prune(&blobs, ttl, max_bytes, None)?;
-    }
+    let prune_report = if ttl.is_some() || max_bytes.is_some() {
+        prune(&blobs, ttl, max_bytes, None)?
+    } else {
+        (0, 0, 0, 0)
+    };
     set_durable_tier(Some(Arc::new(capped)));
-    Ok(discarded_legacy)
+    Ok((discarded_legacy, prune_report))
 }
 
 #[allow(dead_code)] // The reducer binary uses inventory; the hook binary shares this module.
@@ -126,9 +128,20 @@ pub(crate) fn collect(
     ttl: Option<Duration>,
     max_bytes: Option<u64>,
 ) -> Result<(usize, u64, usize, u64), String> {
-    let (legacy_removed, legacy_bytes) = configure_with_report(root, ttl, None)?;
-    let blobs = open_file_blobs(root)?;
-    let (removed, freed, kept, kept_bytes) = prune(&blobs, ttl, max_bytes, None)?;
+    let ((legacy_removed, legacy_bytes), prune_report) =
+        configure_with_report(root, ttl, max_bytes)?;
+    let (removed, freed, kept, kept_bytes) = if ttl.is_some() || max_bytes.is_some() {
+        prune_report
+    } else {
+        let blobs = open_file_blobs(root)?;
+        let remaining = list_all(blobs)?;
+        (
+            0,
+            0,
+            remaining.len(),
+            remaining.iter().map(|entry| entry.meta.len).sum(),
+        )
+    };
     Ok((
         legacy_removed.saturating_add(removed),
         legacy_bytes.saturating_add(freed),
