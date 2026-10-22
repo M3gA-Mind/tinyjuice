@@ -144,7 +144,10 @@ fn removing_legacy_entries_reports_inspection_and_removal_errors() {
     let dir = tempfile::tempdir().unwrap();
     let token = "0123456789abcdef0123456789abcdef";
     let missing_path = dir.path().join(token);
-    assert_eq!(remove_legacy_entry(&missing_path, token, "corrupt").unwrap(), None);
+    assert_eq!(
+        remove_legacy_entry(&missing_path, token, "corrupt").unwrap(),
+        None
+    );
 
     let raced_path = dir.path().join("raced");
     std::fs::write(&raced_path, "legacy").unwrap();
