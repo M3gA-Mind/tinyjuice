@@ -632,12 +632,14 @@ async fn list_all_prefix_async(
     }
 }
 
+#[cfg(test)]
 fn delete_blob(blobs: Arc<dyn BlobStore>, key: &str) -> Result<(), String> {
     let key = key.to_owned();
     let handle = Arc::clone(&blobs);
     run_blob(async move { handle.delete(&key).await }).map(|_| ())
 }
 
+#[cfg(test)]
 fn delete_blob_and_metadata(blobs: Arc<dyn BlobStore>, key: &str) -> Result<(), String> {
     delete_blob(Arc::clone(&blobs), key)?;
     let Some(token) = key.strip_prefix(&format!("{CCR_PREFIX}/")) else {
@@ -808,10 +810,12 @@ fn backend_written_at(blobs: Arc<dyn BlobStore>, key: &str) -> Result<Option<u64
         .and_then(|entry| entry.written_at_ms))
 }
 
+#[cfg(test)]
 fn list_semantic_times(blobs: Arc<dyn BlobStore>) -> Result<HashMap<String, u64>, String> {
     list_timestamps(blobs, CCR_METADATA_PREFIX)
 }
 
+#[cfg(test)]
 fn list_timestamps(
     blobs: Arc<dyn BlobStore>,
     prefix: &str,
