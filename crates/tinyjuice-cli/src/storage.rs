@@ -2,6 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
@@ -63,6 +64,7 @@ fn configure_with_report(
     let capped = CappedCcrStore {
         store,
         blobs: Arc::clone(&blobs),
+        lock_path: process_lock_path(root),
         ttl,
         max_bytes,
     };
@@ -468,8 +470,13 @@ fn remaining_ttl_from_epoch_ms(
 struct CappedCcrStore {
     store: BlobCcrStore,
     blobs: Arc<dyn BlobStore>,
+    lock_path: PathBuf,
     ttl: Option<Duration>,
     max_bytes: Option<u64>,
+}
+
+fn process_lock_path(root: &Path) -> PathBuf {
+    root.join("scopes/tinyjuice-cli/.tinyjuice-ccr.lock")
 }
 
 impl CcrStore for CappedCcrStore {
