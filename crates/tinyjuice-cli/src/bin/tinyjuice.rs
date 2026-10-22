@@ -532,13 +532,13 @@ fn finish_toml_lines(lines: Vec<String>) -> String {
 }
 
 fn retrieve_command(args: Vec<String>) -> Result<(), String> {
-    configure_cli_cache()?;
     let token = args
         .first()
         .ok_or_else(|| "retrieve requires a CCR token".to_string())?;
     if args.len() > 1 {
         return Err("retrieve accepts exactly one CCR token".to_string());
     }
+    configure_cli_cache()?;
     let Some(original) = tinyjuice::cache::retrieve(token) else {
         return Err(format!("no original found for token {token}"));
     };
