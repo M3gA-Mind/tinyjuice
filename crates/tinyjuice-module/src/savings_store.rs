@@ -113,17 +113,11 @@ impl Savings {
     /// for claim-bound imports, and its authority ends when the call returns.
     pub(crate) async fn import_at(
         &self,
-        connection: Option<&Connection>,
+        _connection: Option<&Connection>,
         storage: &Storage,
         legacy: SavingsAggregate,
     ) -> BusResult<bool> {
         let mut state = self.state.lock().await;
-        self.load(&mut state, connection).await;
-        if !state.loaded || state.docs.is_none() {
-            return Err(tinybus::Error::failed(
-                "savings storage is not readable yet",
-            ));
-        }
         let docs = storage.documents();
         let stored = docs
             .get_as::<StoredSavings>(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
@@ -198,9 +192,11 @@ impl Savings {
             }
         };
         if let Some(stored) = stored.filter(|_| !state.reset_early) {
-            let early = self.ledger.stats();
+            let early = state.dirty.then(|| self.ledger.stats());
             self.ledger.replace(stored);
-            self.ledger.absorb(&early);
+            if let Some(early) = early {
+                self.ledger.absorb(&early);
+            }
         }
         state.loaded = true;
         if state.dirty {

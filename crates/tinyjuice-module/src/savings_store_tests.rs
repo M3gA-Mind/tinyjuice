@@ -1,7 +1,7 @@
 use super::*;
 use crate::storage::tests::rig;
 use tinyjuice_bus::savings::SavingsBucket;
-use tinystoragedrivers_api::{DocumentStore, StorageBackend};
+use tinystoragedrivers_api::{DocumentStore, Storage, StorageBackend};
 use tinystoragedrivers_testkit::{Failing, FaultPlan};
 use tinystoragedrivers_types::{ErrorKind, Scope};
 
@@ -316,10 +316,14 @@ async fn request_local_import_uses_the_call_storage_without_caching_it() {
 async fn request_local_import_works_without_an_ordinary_storage_port() {
     let rig = rig(false).await?;
     let callback = tinystoragedrivers_testkit::memory_backend();
-    let callback_storage = Arc::clone(
-        callback
-            .for_scope(&Scope::new("callback")?)?
-            .storage(),
+    let callback = callback.for_scope(&Scope::new("callback")?)?;
+    let callback_storage = Storage::new(
+        Arc::clone(callback.documents()),
+        Arc::clone(callback.streams()),
+        Arc::clone(callback.kv()),
+        Arc::clone(callback.blobs()),
+        Arc::clone(callback.queues()),
+        Arc::clone(callback.secrets()),
     );
     let savings = Savings::new();
     let legacy = SavingsAggregate {
@@ -375,7 +379,14 @@ async fn request_local_import_uses_callback_destination_when_ordinary_totals_exi
         )
         .await?;
     assert_eq!(savings.stats(None).await.total.events, 1);
-    let callback_storage = Arc::clone(callback.storage());
+    let callback_storage = Storage::new(
+        Arc::clone(callback.documents()),
+        Arc::clone(callback.streams()),
+        Arc::clone(callback.kv()),
+        Arc::clone(callback.blobs()),
+        Arc::clone(callback.queues()),
+        Arc::clone(callback.secrets()),
+    );
     let legacy = SavingsAggregate {
         total: SavingsBucket {
             events: 2,
