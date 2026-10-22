@@ -270,6 +270,54 @@ fn startup_prunes_expired_blobs_with_ttl_without_a_byte_cap() {
 }
 
 #[test]
+fn configuration_reapplies_changed_ttl_to_existing_blobs() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let blobs = open_file_blobs(root).unwrap();
+    let content = "an existing cache entry whose configured TTL changes";
+    let token = tinyjuice::cache::short_hash(content);
+    assert!(
+        BlobCcrStore::new(Arc::clone(&blobs), Some(Duration::from_secs(3_600)))
+            .unwrap()
+            .put(content)
+            .retained()
+    );
+
+    let body_sidecar = || {
+        std::fs::read_dir(root.join("scopes/tinyjuice-cli/blobs"))
+            .unwrap()
+            .map(|entry| std::fs::read(entry.unwrap().path()).unwrap())
+            .filter_map(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+            .find(|sidecar| sidecar["key"] == format!("{CCR_PREFIX}/{token}"))
+            .expect("CCR body metadata sidecar exists")
+    };
+    let original_expiry = body_sidecar()["expires_at_ms"]
+        .as_u64()
+        .expect("the initial TTL is recorded in the backend sidecar");
+
+    configure(root, Some(Duration::from_secs(7_200)), None).unwrap();
+
+    let extended_expiry = body_sidecar()["expires_at_ms"]
+        .as_u64()
+        .expect("the updated TTL is recorded in the backend sidecar");
+    assert!(
+        extended_expiry > original_expiry,
+        "a longer configured TTL must replace the old physical expiry"
+    );
+
+    configure(root, None, None).unwrap();
+
+    assert!(body_sidecar()["expires_at_ms"].is_null());
+    assert_eq!(
+        BlobCcrStore::new(open_file_blobs(root).unwrap(), None)
+            .unwrap()
+            .get(&token)
+            .as_deref(),
+        Some(content)
+    );
+}
+
+#[test]
 fn removing_legacy_entries_reports_inspection_and_removal_errors() {
     let dir = tempfile::tempdir().unwrap();
     let token = "0123456789abcdef0123456789abcdef";
