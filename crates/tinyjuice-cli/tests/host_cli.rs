@@ -152,6 +152,34 @@ fn reduce_json_help_and_argument_errors_do_not_open_cache() {
 }
 
 #[test]
+fn retrieve_argument_errors_do_not_open_cache() {
+    let dir = tempfile::tempdir().unwrap();
+    let cache_path = dir.path().join("not-a-directory");
+    std::fs::write(&cache_path, "not a directory").unwrap();
+
+    for (args, expected_error) in [
+        (&["retrieve"][..], "retrieve requires a CCR token"),
+        (
+            &["retrieve", "one", "two"][..],
+            "retrieve accepts exactly one CCR token",
+        ),
+    ] {
+        let out = Command::new(env!("CARGO_BIN_EXE_tinyjuice"))
+            .args(args)
+            .env("TINYJUICE_CCR_DIR", &cache_path)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .unwrap();
+        assert!(!out.status.success(), "{args:?}: {out:?}");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(stderr.contains(expected_error), "{args:?}: {stderr}");
+        assert!(!stderr.contains("not a directory"), "{args:?}: {stderr}");
+    }
+}
+
+#[test]
 fn host_cli_install_update_and_uninstall_preserve_settings() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("settings.json");
