@@ -213,7 +213,7 @@ fn host_cli_reads_json_files_and_accepts_hooks_without_output() {
 }
 
 #[test]
-fn post_tool_hook_still_runs_when_persistent_cache_storage_cannot_open() {
+fn post_tool_hook_skips_compression_when_persistent_cache_storage_cannot_open() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("ccr"), "not a directory").unwrap();
     let output = (0..200)
@@ -231,10 +231,9 @@ fn post_tool_hook_still_runs_when_persistent_cache_storage_cannot_open() {
     let out = invoke(dir.path(), &["codex-post-tool-use"], &payload);
 
     assert!(out.status.success(), "cache setup must not fail the hook: {out:?}");
-    let response: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(
-        response["hookSpecificOutput"]["hookEventName"],
-        "PostToolUse"
+    assert!(
+        out.stdout.is_empty(),
+        "without durable recovery, the hook must leave host output unchanged"
     );
 }
 
