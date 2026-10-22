@@ -1,6 +1,7 @@
 //! CLI-owned composition of CCR over Tiny Storage Drivers' file backend.
 
 use std::collections::{HashMap, HashSet};
+use std::fs::{File, OpenOptions};
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -59,6 +60,7 @@ fn configure_with_report(
         )
     })?;
     let blobs = open_file_blobs(root)?;
+    let _lock = acquire_process_lock(&process_lock_path(root))?;
     let discarded_legacy = import_legacy_files(root, &blobs, ttl)?;
     let store = BlobCcrStore::new(Arc::clone(&blobs), ttl).map_err(|error| error.to_string())?;
     let capped = CappedCcrStore {
@@ -108,6 +110,9 @@ pub(crate) fn inventory(root: &Path, ttl: Option<Duration>) -> Result<Inventory,
         )
     })? {
         let entry = entry.map_err(|error| format!("failed to inspect CCR entry: {error}"))?;
+        if entry.file_name() == "scopes" {
+            continue;
+        }
         if !entry
             .file_type()
             .map_err(|error| format!("failed to inspect CCR entry type: {error}"))?
@@ -185,8 +190,21 @@ fn prune(
     max_bytes: Option<u64>,
     protect: Option<&str>,
 ) -> Result<(usize, u64, usize, u64), String> {
-    let mut entries = list_all(Arc::clone(blobs))?;
-    let semantic_times = list_semantic_times(Arc::clone(blobs))?;
+    run_blob({
+        let blobs = Arc::clone(blobs);
+        let protect = protect.map(str::to_owned);
+        async move { prune_async(blobs, ttl, max_bytes, protect.as_deref()).await }
+    })
+}
+
+async fn prune_async(
+    blobs: Arc<dyn BlobStore>,
+    ttl: Option<Duration>,
+    max_bytes: Option<u64>,
+    protect: Option<&str>,
+) -> Result<(usize, u64, usize, u64), String> {
+    let mut entries = list_all_prefix_async(Arc::clone(&blobs), &format!("{CCR_PREFIX}/")).await?;
+    let semantic_times = list_timestamps_async(Arc::clone(&blobs), CCR_METADATA_PREFIX).await?;
     for entry in &mut entries {
         if let Some(token) = entry.meta.key.strip_prefix(&format!("{CCR_PREFIX}/"))
             && let Some(written_at_ms) = semantic_times.get(token)
@@ -214,7 +232,7 @@ fn prune(
         if let Some(entry) = entries.iter().find(|entry| &entry.meta.key == key) {
             removed_bytes = removed_bytes.saturating_add(entry.meta.len);
         }
-        delete_blob_and_metadata(Arc::clone(blobs), key)?;
+        delete_blob_and_metadata_async(Arc::clone(&blobs), key).await?;
     }
     entries.retain(|entry| !remove.contains(&entry.meta.key));
     let mut total = entries.iter().map(|entry| entry.meta.len).sum::<u64>();
@@ -227,13 +245,13 @@ fn prune(
             if protect.is_some_and(|token| entry.meta.key == format!("{CCR_PREFIX}/{token}")) {
                 continue;
             }
-            delete_blob_and_metadata(Arc::clone(blobs), &entry.meta.key)?;
+            delete_blob_and_metadata_async(Arc::clone(&blobs), &entry.meta.key).await?;
             removed_bytes = removed_bytes.saturating_add(entry.meta.len);
             total = total.saturating_sub(entry.meta.len);
             remove.push(entry.meta.key);
         }
     }
-    let remaining = list_all(Arc::clone(blobs))?;
+    let remaining = list_all_prefix_async(Arc::clone(&blobs), &format!("{CCR_PREFIX}/")).await?;
     let remaining_bytes = remaining.iter().map(|entry| entry.meta.len).sum();
     let remaining_tokens = remaining
         .iter()
@@ -241,12 +259,15 @@ fn prune(
         .collect::<HashSet<_>>();
     for token in semantic_times.keys() {
         if !remaining_tokens.contains(token.as_str()) {
-            delete_metadata(Arc::clone(blobs), token)?;
+            delete_metadata_async(Arc::clone(&blobs), token).await?;
         }
     }
-    for token in list_timestamps(Arc::clone(blobs), CCR_IMPORT_PREFIX)?.keys() {
+    for token in list_timestamps_async(Arc::clone(&blobs), CCR_IMPORT_PREFIX)
+        .await?
+        .keys()
+    {
         if !remaining_tokens.contains(token.as_str()) {
-            delete_import_intent(Arc::clone(blobs), token)?;
+            delete_import_intent_async(Arc::clone(&blobs), token).await?;
         }
     }
     Ok((
@@ -479,9 +500,34 @@ fn process_lock_path(root: &Path) -> PathBuf {
     root.join("scopes/tinyjuice-cli/.tinyjuice-ccr.lock")
 }
 
+fn acquire_process_lock(path: &Path) -> Result<File, String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "CCR process lock has no parent directory".to_owned())?;
+    std::fs::create_dir_all(parent)
+        .map_err(|error| format!("cannot create CCR process-lock directory: {error}"))?;
+    let lock = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(path)
+        .map_err(|error| format!("cannot open CCR process lock: {error}"))?;
+    lock.lock()
+        .map_err(|error| format!("cannot acquire CCR process lock: {error}"))?;
+    Ok(lock)
+}
+
 impl CcrStore for CappedCcrStore {
     fn put(&self, content: &str) -> CcrPutResult {
         let token = tinyjuice::cache::short_hash(content);
+        let _lock = match acquire_process_lock(&self.lock_path) {
+            Ok(lock) => lock,
+            Err(error) => {
+                log::debug!("[tinyjuice_cli] CCR process lock failed: {error}");
+                return CcrPutResult::new(token, false);
+            }
+        };
         if let Err(error) = delete_import_intent(Arc::clone(&self.blobs), &token) {
             log::debug!(
                 "[tinyjuice_cli] stale CCR import intent cleanup failed before write: {error}"
@@ -567,6 +613,25 @@ fn list_all_prefix(
     }
 }
 
+async fn list_all_prefix_async(
+    blobs: Arc<dyn BlobStore>,
+    prefix: &str,
+) -> Result<Vec<tinystoragedrivers_types::BlobListEntry>, String> {
+    let mut entries = Vec::new();
+    let mut after = None;
+    loop {
+        let page = blobs
+            .list_page(prefix, after.as_deref(), PAGE_SIZE)
+            .await
+            .map_err(|error| error.to_string())?;
+        entries.extend(page.items);
+        after = page.next_after;
+        if after.is_none() {
+            return Ok(entries);
+        }
+    }
+}
+
 fn delete_blob(blobs: Arc<dyn BlobStore>, key: &str) -> Result<(), String> {
     let key = key.to_owned();
     let handle = Arc::clone(&blobs);
@@ -581,10 +646,33 @@ fn delete_blob_and_metadata(blobs: Arc<dyn BlobStore>, key: &str) -> Result<(), 
     delete_metadata(blobs, token)
 }
 
+async fn delete_blob_and_metadata_async(
+    blobs: Arc<dyn BlobStore>,
+    key: &str,
+) -> Result<(), String> {
+    blobs
+        .delete(key)
+        .await
+        .map_err(|error| error.to_string())?;
+    let Some(token) = key.strip_prefix(&format!("{CCR_PREFIX}/")) else {
+        return Ok(());
+    };
+    delete_metadata_async(blobs, token).await
+}
+
 fn delete_metadata(blobs: Arc<dyn BlobStore>, token: &str) -> Result<(), String> {
     let key = format!("{CCR_METADATA_PREFIX}{token}");
     let handle = Arc::clone(&blobs);
     run_blob(async move { handle.delete(&key).await }).map(|_| ())
+}
+
+async fn delete_metadata_async(blobs: Arc<dyn BlobStore>, token: &str) -> Result<(), String> {
+    let key = format!("{CCR_METADATA_PREFIX}{token}");
+    blobs
+        .delete(&key)
+        .await
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 fn write_semantic_time(
@@ -612,6 +700,18 @@ fn read_import_intent(blobs: Arc<dyn BlobStore>, token: &str) -> Result<Option<u
 fn delete_import_intent(blobs: Arc<dyn BlobStore>, token: &str) -> Result<(), String> {
     let key = format!("{CCR_IMPORT_PREFIX}{token}");
     run_blob(async move { blobs.delete(&key).await }).map(|_| ())
+}
+
+async fn delete_import_intent_async(
+    blobs: Arc<dyn BlobStore>,
+    token: &str,
+) -> Result<(), String> {
+    let key = format!("{CCR_IMPORT_PREFIX}{token}");
+    blobs
+        .delete(&key)
+        .await
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 fn write_timestamp(
@@ -675,6 +775,35 @@ fn read_timestamp(
     }
 }
 
+async fn read_timestamp_async(
+    blobs: Arc<dyn BlobStore>,
+    prefix: &str,
+    token: &str,
+) -> Result<Option<u64>, String> {
+    let key = format!("{prefix}{token}");
+    let Some(blob) = blobs
+        .get(&key)
+        .await
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    match parse_timestamp(&blob.bytes) {
+        Ok(timestamp) => Ok(Some(timestamp)),
+        Err(error) => {
+            log::warn!("[tinyjuice_cli] discarding malformed CCR timestamp sidecar {key}: {error}");
+            blobs
+                .delete(&key)
+                .await
+                .map(|_| ())
+                .map_err(|error| {
+                    format!("cannot remove malformed CCR timestamp sidecar: {error}")
+                })?;
+            Ok(None)
+        }
+    }
+}
+
 fn parse_timestamp(bytes: &[u8]) -> Result<u64, String> {
     std::str::from_utf8(bytes)
         .map_err(|error| format!("invalid CCR timestamp metadata: {error}"))?
@@ -717,13 +846,36 @@ fn list_timestamps(
     Ok(times)
 }
 
-fn run_blob<T: Send + 'static>(
-    future: impl std::future::Future<Output = tinystoragedrivers_types::Result<T>> + Send + 'static,
-) -> Result<T, String> {
-    // Each helper owns a separate current-thread runtime. Blob engines in this
-    // CLI are self-contained and do not depend on work from another runtime.
-    // Run it on a dedicated thread because callers such as CcrStore::put can
-    // execute synchronously from inside an active Tokio runtime.
+async fn list_timestamps_async(
+    blobs: Arc<dyn BlobStore>,
+    prefix: &str,
+) -> Result<HashMap<String, u64>, String> {
+    let entries = list_all_prefix_async(Arc::clone(&blobs), prefix).await?;
+    let mut times = HashMap::new();
+    for entry in entries {
+        let Some(token) = entry.meta.key.strip_prefix(prefix) else {
+            continue;
+        };
+        if !is_token(token) {
+            continue;
+        }
+        if let Some(timestamp) = read_timestamp_async(Arc::clone(&blobs), prefix, token).await? {
+            times.insert(token.to_owned(), timestamp);
+        }
+    }
+    Ok(times)
+}
+
+fn run_blob<T, E>(
+    future: impl std::future::Future<Output = Result<T, E>> + Send + 'static,
+) -> Result<T, String>
+where
+    T: Send + 'static,
+    E: std::fmt::Display + Send + 'static,
+{
+    // Blob engines in this CLI are self-contained and do not depend on work
+    // from another runtime. Run the synchronous entry point on one dedicated
+    // thread so it remains safe inside a current-thread Tokio runtime.
     std::thread::spawn(move || {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
