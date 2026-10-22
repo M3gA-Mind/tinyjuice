@@ -117,7 +117,10 @@ fn legacy_import_skips_corrupt_entries_and_continues_importing_valid_files() {
 
     assert!(!valid_path.exists(), "the valid legacy file is imported");
     assert!(mismatch_path.exists(), "the mismatched source is preserved");
-    assert!(unreadable_path.exists(), "the unreadable source is preserved");
+    assert!(
+        unreadable_path.exists(),
+        "the unreadable source is preserved"
+    );
     assert_eq!(
         BlobCcrStore::new(blobs, None)
             .unwrap()

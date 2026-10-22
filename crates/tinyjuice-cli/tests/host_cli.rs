@@ -230,7 +230,10 @@ fn post_tool_hook_skips_compression_when_persistent_cache_storage_cannot_open() 
 
     let out = invoke(dir.path(), &["codex-post-tool-use"], &payload);
 
-    assert!(out.status.success(), "cache setup must not fail the hook: {out:?}");
+    assert!(
+        out.status.success(),
+        "cache setup must not fail the hook: {out:?}"
+    );
     assert!(
         out.stdout.is_empty(),
         "without durable recovery, the hook must leave host output unchanged"

@@ -253,9 +253,7 @@ fn import_legacy_files(
             }
         };
         if tinyjuice::cache::short_hash(&content) != token {
-            log::warn!(
-                "[tinyjuice_cli] skipping legacy CCR entry {token}: content hash mismatch"
-            );
+            log::warn!("[tinyjuice_cli] skipping legacy CCR entry {token}: content hash mismatch");
             continue;
         }
         let modified = entry
