@@ -120,6 +120,21 @@ fn collection_reports_expired_legacy_entries() {
 }
 
 #[test]
+fn removing_legacy_entries_reports_inspection_and_removal_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let token = "0123456789abcdef0123456789abcdef";
+    let missing_path = dir.path().join(token);
+    let inspect_error = remove_legacy_entry(&missing_path, token, "corrupt").unwrap_err();
+    assert!(inspect_error.contains("cannot inspect corrupt legacy CCR entry"));
+
+    let directory_path = dir.path().join(token);
+    std::fs::create_dir(&directory_path).unwrap();
+    let remove_error = remove_legacy_entry(&directory_path, token, "expired").unwrap_err();
+    assert!(remove_error.contains("cannot remove expired legacy CCR entry"));
+    assert!(directory_path.is_dir());
+}
+
+#[test]
 fn configure_and_inventory_report_invalid_storage_paths() {
     let dir = tempfile::tempdir().unwrap();
     let missing = dir.path().join("missing");
