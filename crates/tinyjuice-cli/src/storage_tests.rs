@@ -103,8 +103,14 @@ fn collection_reports_expired_legacy_entries() {
     let token = tinyjuice::cache::short_hash(content);
     let path = dir.path().join(token);
     std::fs::write(&path, content).unwrap();
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(SystemTime::UNIX_EPOCH))
+        .unwrap();
 
-    let result = collect(dir.path(), Some(Duration::ZERO), None).unwrap();
+    let result = collect(dir.path(), Some(Duration::from_secs(1)), None).unwrap();
 
     assert_eq!(result, (1, content.len() as u64, 0, 0));
     assert!(
