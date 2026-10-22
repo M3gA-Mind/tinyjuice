@@ -17,7 +17,10 @@ fn artifact_opened_after_path_replacement_is_rejected_by_file_identity() {
         .unwrap()
         .metadata()
         .unwrap();
-    assert!(!same_open_file_identity(&expected_metadata, &opened_metadata));
+    assert!(!same_open_file_identity(
+        &expected_metadata,
+        &opened_metadata
+    ));
 }
 
 #[test]

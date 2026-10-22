@@ -150,10 +150,46 @@ pub fn read_tool_result_artifact(dir: &Path, raw: &str, max_bytes: u64) -> Resul
         )));
     }
     let file = std::fs::File::open(&canonical).map_err(not_found)?;
+    let opened_metadata = file.metadata().map_err(not_found)?;
+    if !same_open_file_identity(&metadata, &opened_metadata) {
+        return Err(artifact_refused(
+            "that artifact changed while its access was being checked",
+        ));
+    }
+    if opened_metadata.len() > max_bytes {
+        return Err(artifact_refused(&format!(
+            "that artifact is {} bytes, over the {max_bytes}-byte limit",
+            opened_metadata.len()
+        )));
+    }
     let bytes = read_bounded_artifact_bytes(file, max_bytes).map_err(|_| {
         artifact_refused(&format!("that artifact exceeds the {max_bytes}-byte limit"))
     })?;
     Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+fn same_open_file_identity(expected: &std::fs::Metadata, opened: &std::fs::Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        expected.dev() == opened.dev() && expected.ino() == opened.ino()
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        expected
+            .volume_serial_number()
+            .zip(expected.file_index())
+            .zip(opened.volume_serial_number().zip(opened.file_index()))
+            .is_some_and(|(expected, opened)| expected == opened)
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (expected, opened);
+        false
+    }
 }
 
 fn read_bounded_artifact_bytes(reader: impl Read, max_bytes: u64) -> Result<Vec<u8>, String> {
