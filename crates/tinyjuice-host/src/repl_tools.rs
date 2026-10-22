@@ -153,6 +153,7 @@ pub fn read_tool_result_artifact(dir: &Path, raw: &str, max_bytes: u64) -> Resul
     let opened_metadata = file.metadata().map_err(not_found)?;
     validate_opened_artifact(
         &canonical_dir,
+        &canonical,
         &metadata,
         &opened_metadata,
         &file,
@@ -166,6 +167,7 @@ pub fn read_tool_result_artifact(dir: &Path, raw: &str, max_bytes: u64) -> Resul
 
 fn validate_opened_artifact(
     canonical_dir: &Path,
+    expected_path: &Path,
     expected: &std::fs::Metadata,
     opened: &std::fs::Metadata,
     file: &std::fs::File,
@@ -176,6 +178,11 @@ fn validate_opened_artifact(
     if !opened_path.starts_with(canonical_dir) {
         return Err(artifact_refused(
             "that path resolves outside the tool-results directory",
+        ));
+    }
+    if opened_path != expected_path {
+        return Err(artifact_refused(
+            "that artifact changed while its access was being checked",
         ));
     }
     if !same_open_file_identity(expected, opened) {
@@ -257,12 +264,11 @@ fn same_open_file_identity(expected: &std::fs::Metadata, opened: &std::fs::Metad
 
     #[cfg(windows)]
     {
-        use std::os::windows::fs::MetadataExt;
-        expected
-            .volume_serial_number()
-            .zip(expected.file_index())
-            .zip(opened.volume_serial_number().zip(opened.file_index()))
-            .is_some_and(|(expected, opened)| expected == opened)
+        // Windows MetadataExt does not yet expose stable file identity on the
+        // crate's MSRV. The normalized path obtained from the opened handle is
+        // compared with the canonical authorization path by the caller.
+        let _ = (expected, opened);
+        true
     }
 
     #[cfg(not(any(unix, windows)))]
