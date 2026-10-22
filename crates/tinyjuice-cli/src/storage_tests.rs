@@ -439,6 +439,31 @@ fn concurrent_capped_writes_do_not_prune_each_other_into_an_empty_cache() {
 }
 
 #[test]
+fn capped_write_fails_closed_when_process_lock_directory_cannot_be_created() {
+    let dir = tempfile::tempdir().unwrap();
+    let blobs = open_file_blobs(dir.path()).unwrap();
+    let blocker = dir.path().join("not-a-directory");
+    std::fs::write(&blocker, b"file blocks lock directory creation").unwrap();
+    let store = CappedCcrStore {
+        store: BlobCcrStore::new(Arc::clone(&blobs), None).unwrap(),
+        blobs: Arc::clone(&blobs),
+        lock_path: blocker.join(".tinyjuice-ccr.lock"),
+        ttl: None,
+        max_bytes: Some(1024),
+    };
+
+    let result = store.put("must not be written without the process lock");
+
+    assert!(!result.retained());
+    assert!(
+        run_blob(async move { blobs.list(&format!("{CCR_PREFIX}/")).await })
+            .unwrap()
+            .is_empty(),
+        "the write must not proceed after process-lock acquisition fails"
+    );
+}
+
+#[test]
 fn import_skips_directories_and_unrecognized_names_and_removes_expired_files() {
     let dir = tempfile::tempdir().unwrap();
     let nested = dir.path().join("nested");
@@ -596,6 +621,44 @@ fn malformed_timestamp_sidecars_do_not_abort_pruning_or_hide_backend_write_time(
         None
     );
     assert_eq!(read_import_intent(blobs, intent_token).unwrap(), None);
+}
+
+#[test]
+fn malformed_timestamp_cleanup_failure_aborts_pruning() {
+    let dir = tempfile::tempdir().unwrap();
+    let inner = open_file_blobs(dir.path()).unwrap();
+    let content = "body with an unreadable timestamp sidecar";
+    let token = tinyjuice::cache::short_hash(content);
+    assert!(BlobCcrStore::new(Arc::clone(&inner), None)
+        .unwrap()
+        .put(content)
+        .retained());
+    run_blob({
+        let inner = Arc::clone(&inner);
+        async move {
+            inner
+                .put(
+                    &format!("{CCR_METADATA_PREFIX}{token}"),
+                    b"not-a-number".to_vec(),
+                    None,
+                )
+                .await
+        }
+    })
+    .unwrap();
+    let faults = FaultPlan::new();
+    faults.fail_operation_nth("semantic_metadata_delete", 1, ErrorKind::Backend);
+    let failing: Arc<dyn BlobStore> = Arc::new(FailMetadataOperations {
+        inner: Arc::clone(&inner),
+        faults,
+    });
+
+    let error = prune(&failing, None, None, None).unwrap_err();
+
+    assert!(error.contains("cannot remove malformed CCR timestamp sidecar"));
+    assert!(run_blob(async move { inner.get(&format!("{CCR_METADATA_PREFIX}{token}")).await })
+        .unwrap()
+        .is_some());
 }
 
 #[test]
