@@ -200,13 +200,18 @@ fn validate_opened_artifact(
 }
 
 fn opened_file_path(file: &std::fs::File) -> Option<std::path::PathBuf> {
+    #[cfg(target_os = "macos")]
+    {
+        macos_opened_file_path(file).and_then(|path| std::fs::canonicalize(path).ok())
+    }
+
     #[cfg(target_os = "linux")]
     let handle_path = {
         use std::os::fd::AsRawFd;
         std::path::PathBuf::from(format!("/proc/self/fd/{}", file.as_raw_fd()))
     };
 
-    #[cfg(all(unix, not(target_os = "linux")))]
+    #[cfg(all(unix, not(any(target_os = "linux", target_os = "macos"))))]
     let handle_path = {
         use std::os::fd::AsRawFd;
         std::path::PathBuf::from(format!("/dev/fd/{}", file.as_raw_fd()))
@@ -215,11 +220,35 @@ fn opened_file_path(file: &std::fs::File) -> Option<std::path::PathBuf> {
     #[cfg(windows)]
     let handle_path = windows_opened_file_path(file)?;
 
-    #[cfg(not(any(unix, windows)))]
-    return None;
+    #[cfg(any(target_os = "linux", all(unix, not(target_os = "macos")), windows))]
+    {
+        std::fs::canonicalize(handle_path).ok()
+    }
 
-    #[cfg(any(unix, windows))]
-    std::fs::canonicalize(handle_path).ok()
+    #[cfg(not(any(unix, windows)))]
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn macos_opened_file_path(file: &std::fs::File) -> Option<std::path::PathBuf> {
+    use std::os::{fd::AsRawFd, unix::ffi::OsStringExt};
+
+    const F_GETPATH: i32 = 50;
+    const PATH_MAX: usize = 1024;
+
+    unsafe extern "C" {
+        fn fcntl(fd: i32, command: i32, ...) -> i32;
+    }
+
+    let mut buffer = [0i8; PATH_MAX];
+    let result = unsafe { fcntl(file.as_raw_fd(), F_GETPATH, buffer.as_mut_ptr()) };
+    if result == -1 {
+        return None;
+    }
+    let path = unsafe { std::ffi::CStr::from_ptr(buffer.as_ptr()) };
+    Some(std::path::PathBuf::from(std::ffi::OsString::from_vec(
+        path.to_bytes().to_vec(),
+    )))
 }
 
 #[cfg(windows)]
