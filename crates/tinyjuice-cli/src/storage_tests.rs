@@ -144,8 +144,17 @@ fn removing_legacy_entries_reports_inspection_and_removal_errors() {
     let dir = tempfile::tempdir().unwrap();
     let token = "0123456789abcdef0123456789abcdef";
     let missing_path = dir.path().join(token);
-    let inspect_error = remove_legacy_entry(&missing_path, token, "corrupt").unwrap_err();
-    assert!(inspect_error.contains("cannot inspect corrupt legacy CCR entry"));
+    assert_eq!(remove_legacy_entry(&missing_path, token, "corrupt").unwrap(), None);
+
+    let raced_path = dir.path().join("raced");
+    std::fs::write(&raced_path, "legacy").unwrap();
+    let removed = remove_legacy_entry_with(&raced_path, token, "corrupt", |path| {
+        std::fs::remove_file(path)?;
+        Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+    })
+    .unwrap();
+    assert_eq!(removed, None);
+    assert!(!raced_path.exists());
 
     let directory_path = dir.path().join(token);
     std::fs::create_dir(&directory_path).unwrap();
