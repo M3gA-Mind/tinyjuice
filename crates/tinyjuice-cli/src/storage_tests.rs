@@ -318,6 +318,79 @@ fn configuration_reapplies_changed_ttl_to_existing_blobs() {
 }
 
 #[test]
+fn configuration_preserves_backend_write_time_when_semantic_time_is_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let blobs = open_file_blobs(root).unwrap();
+    let content = "existing body without a semantic timestamp";
+    let token = tinyjuice::cache::short_hash(content);
+    assert!(
+        BlobCcrStore::new(Arc::clone(&blobs), Some(Duration::from_secs(3_600)))
+            .unwrap()
+            .put(content)
+            .retained()
+    );
+    let written_at_ms = list_all(Arc::clone(&blobs))
+        .unwrap()
+        .into_iter()
+        .find(|entry| entry.meta.key == format!("{CCR_PREFIX}/{token}"))
+        .and_then(|entry| entry.written_at_ms)
+        .expect("file backend records the original body write time");
+
+    configure(root, Some(Duration::from_secs(7_200)), None).unwrap();
+
+    assert_eq!(
+        read_semantic_time(open_file_blobs(root).unwrap(), &token).unwrap(),
+        Some(written_at_ms),
+        "reapplying expiry must preserve the original age for later pruning"
+    );
+}
+
+#[test]
+fn configuration_does_not_rewrite_cache_when_ttl_is_unchanged() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let blobs = open_file_blobs(root).unwrap();
+    let content = "cache body used to check unchanged TTL configuration";
+    let token = tinyjuice::cache::short_hash(content);
+    let ttl = Some(Duration::from_secs(3_600));
+    assert!(
+        BlobCcrStore::new(Arc::clone(&blobs), ttl)
+            .unwrap()
+            .put(content)
+            .retained()
+    );
+    configure(root, ttl, None).unwrap();
+
+    let body_sidecar = std::fs::read_dir(root.join("scopes/tinyjuice-cli/blobs"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+                && std::fs::read(path)
+                    .ok()
+                    .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+                    .is_some_and(|sidecar| sidecar["key"] == format!("{CCR_PREFIX}/{token}"))
+        })
+        .expect("CCR body metadata sidecar exists");
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&body_sidecar)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(SystemTime::UNIX_EPOCH))
+        .unwrap();
+
+    configure(root, ttl, None).unwrap();
+
+    assert_eq!(
+        std::fs::metadata(body_sidecar).unwrap().modified().unwrap(),
+        SystemTime::UNIX_EPOCH,
+        "an unchanged TTL must not rewrite each cached body's metadata"
+    );
+}
+
+#[test]
 fn removing_legacy_entries_reports_inspection_and_removal_errors() {
     let dir = tempfile::tempdir().unwrap();
     let token = "0123456789abcdef0123456789abcdef";
