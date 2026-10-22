@@ -521,7 +521,13 @@ fn acquire_process_lock(path: &Path) -> Result<File, String> {
 impl CcrStore for CappedCcrStore {
     fn put(&self, content: &str) -> CcrPutResult {
         let token = tinyjuice::cache::short_hash(content);
-        let _lock = ();
+        let _lock = match acquire_process_lock(&self.lock_path) {
+            Ok(lock) => lock,
+            Err(error) => {
+                log::debug!("[tinyjuice_cli] CCR process lock failed: {error}");
+                return CcrPutResult::new(token, false);
+            }
+        };
         if let Err(error) = delete_import_intent(Arc::clone(&self.blobs), &token) {
             log::debug!(
                 "[tinyjuice_cli] stale CCR import intent cleanup failed before write: {error}"
