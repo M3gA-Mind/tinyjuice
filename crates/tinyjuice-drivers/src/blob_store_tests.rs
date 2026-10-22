@@ -58,19 +58,22 @@ fn an_original_round_trips_under_its_content_token() {
 }
 
 #[test]
-fn released_blob_keys_are_read_in_place_without_copying_them() {
+fn released_blob_keys_are_rekeyed_before_the_store_reads_them() {
     let blobs = handle();
     let token = short_hash("released original");
-    let key = format!("tinyjuice_ccr/{token}");
+    let (key, content_type, bytes) = tinyjuice_bus::storage::migrate_ccr_blob(
+        format!("{}{token}", tinyjuice_bus::storage::LEGACY_CCR_PREFIX),
+        Some(CONTENT_TYPE.to_owned()),
+        b"released original".to_vec(),
+    )
+    .expect("legacy CCR key migrates");
     crate::blocking::Blocking::new()
         .unwrap()
         .run({
             let blobs = Arc::clone(&blobs);
             let key = key.clone();
             async move {
-                blobs
-                    .put(&key, b"released original".to_vec(), Some(CONTENT_TYPE))
-                    .await
+                blobs.put(&key, bytes, content_type).await
             }
         })
         .unwrap()
@@ -80,7 +83,7 @@ fn released_blob_keys_are_read_in_place_without_copying_them() {
     assert_eq!(store.get(&token).as_deref(), Some("released original"));
     let keys = crate::blocking::Blocking::new()
         .unwrap()
-        .run(async move { blobs.list("tinyjuice_ccr/").await })
+        .run(async move { blobs.list(&format!("{CCR_PREFIX}/")).await })
         .unwrap()
         .unwrap();
     assert_eq!(keys.len(), 1);
