@@ -53,7 +53,7 @@ fn configure_with_report(
         ttl,
         max_bytes,
     };
-    if max_bytes.is_some() {
+    if ttl.is_some() || max_bytes.is_some() {
         prune(&blobs, ttl, max_bytes, None)?;
     }
     set_durable_tier(Some(Arc::new(capped)));

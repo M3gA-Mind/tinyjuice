@@ -3,7 +3,7 @@ use tinyjuice::cache::{CcrStore, RangeUnit};
 use tinystoragedrivers_api::BlobStore;
 use tinystoragedrivers_testkit::FaultPlan;
 use tinystoragedrivers_types::{
-    Blob, BlobListPage, BlobMeta, Capabilities, ErrorKind, Result as StorageResult,
+    Blob, BlobListPage, BlobMeta, Capabilities, ErrorKind, Result as StorageResult, StorageError,
 };
 
 #[derive(Debug)]
@@ -28,10 +28,20 @@ impl BlobStore for FailMetadataOperations {
         bytes: Vec<u8>,
         content_type: Option<&str>,
     ) -> StorageResult<BlobMeta> {
+        let fail_after_body_write = key.starts_with(&format!("{CCR_PREFIX}/"))
+            && self.faults.check("body_put_after_commit").is_err();
         if key.starts_with(CCR_METADATA_PREFIX) {
             self.faults.check("metadata_put")?;
         }
-        self.inner.put(key, bytes, content_type).await
+        let metadata = self.inner.put(key, bytes, content_type).await?;
+        if fail_after_body_write {
+            Err(StorageError::new(
+                ErrorKind::Backend,
+                "simulated lost body-write acknowledgement",
+            ))
+        } else {
+            Ok(metadata)
+        }
     }
 
     async fn get(&self, key: &str) -> StorageResult<Option<Blob>> {
@@ -621,6 +631,52 @@ fn failed_timestamp_refresh_does_not_leave_an_old_age_for_gc() {
         "the physical write time must replace stale imported age when timestamp refresh fails"
     );
     assert_eq!(original.get(&token).as_deref(), Some(content));
+}
+
+#[test]
+fn stale_import_intent_does_not_hide_a_newer_body_write() {
+    let dir = tempfile::tempdir().unwrap();
+    let content = "a later normal re-offload after an interrupted import";
+    let token = tinyjuice::cache::short_hash(content);
+    let source_path = dir.path().join(&token);
+    std::fs::write(&source_path, content).unwrap();
+    let old_time = SystemTime::now() - Duration::from_secs(60);
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&source_path)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(old_time))
+        .unwrap();
+
+    let inner = open_file_blobs(dir.path()).unwrap();
+    let initial = BlobCcrStore::new(Arc::clone(&inner), None).unwrap();
+    assert!(initial.put(content).retained());
+    write_import_intent(Arc::clone(&inner), &token, unix_epoch_ms(old_time), None).unwrap();
+
+    let faults = FaultPlan::new();
+    faults.fail_operation_nth("body_put_after_commit", 1, ErrorKind::Backend);
+    let flaky: Arc<dyn BlobStore> = Arc::new(FailMetadataOperations {
+        inner: Arc::clone(&inner),
+        faults,
+    });
+    let reoffloaded = CappedCcrStore {
+        store: BlobCcrStore::new(Arc::clone(&flaky), None).unwrap(),
+        blobs: flaky.clone(),
+        ttl: None,
+        max_bytes: None,
+    };
+    assert!(!reoffloaded.put(content).retained());
+    let backend_time = backend_written_at(
+        Arc::clone(&inner),
+        &format!("{CCR_PREFIX}/{token}"),
+    )
+    .unwrap()
+    .unwrap();
+    assert!(backend_time > unix_epoch_ms(old_time));
+
+    import_legacy_files(dir.path(), &flaky, None).unwrap();
+
+    assert_eq!(read_semantic_time(inner, &token).unwrap(), Some(backend_time));
 }
 
 #[test]
