@@ -1,9 +1,29 @@
 use super::*;
 
 #[test]
-fn owner_collections_declare_savings_without_engine_or_migration_policy() {
+fn owner_collection_and_blob_key_contracts_are_stable() {
     assert_eq!(collections(), vec![CollectionSpec::new("juice.savings")]);
-    assert_eq!(CCR_PREFIX, "tinyjuice_ccr");
+    assert_eq!(CCR_PREFIX, "juice/ccr");
+    assert_eq!(LEGACY_CCR_PREFIX, "tinyjuice_ccr/");
+}
+
+#[test]
+fn ccr_key_migration_preserves_payload_and_metadata() {
+    let migrated = migrate_ccr_blob(
+        "tinyjuice_ccr/0123456789abcdef".into(),
+        Some("text/plain; charset=utf-8".into()),
+        b"original text".to_vec(),
+    )
+    .unwrap();
+    assert_eq!(migrated.0, "juice/ccr/0123456789abcdef");
+    assert_eq!(migrated.1.as_deref(), Some("text/plain; charset=utf-8"));
+    assert_eq!(migrated.2, b"original text");
+}
+
+#[test]
+fn unrelated_blob_keys_are_not_migrated() {
+    let moved = migrate_ccr_blob("elsewhere/x".into(), None, b"x".to_vec());
+    assert!(moved.is_none());
 }
 
 #[test]
