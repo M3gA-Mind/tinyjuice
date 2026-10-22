@@ -71,18 +71,20 @@ impl Tool for RetrieveToolOutputTool {
                 tinyjuice_bus::tools::RETRIEVE
             )));
         };
-        let range = args
+        let range = match args
             .get("range")
             .filter(|value| value.is_object())
-            .map(|range| {
-                let start = range.get("start").and_then(Value::as_u64).unwrap_or(0) as usize;
-                let end = range.get("end").and_then(Value::as_u64).unwrap_or(u64::MAX) as usize;
-                let unit = match range.get("unit").and_then(Value::as_str) {
-                    Some("bytes") => RangeUnit::Bytes,
-                    _ => RangeUnit::Lines,
-                };
-                RetrieveRange { start, end, unit }
-            });
+            .map(parse_range)
+        {
+            Some(Ok(range)) => Some(range),
+            Some(Err(())) => {
+                return Ok(ToolResult::error(format!(
+                    "{}: range endpoint is too large",
+                    tinyjuice_bus::tools::RETRIEVE
+                )));
+            }
+            None => None,
+        };
 
         match (self.retrieve)(token.to_owned(), range).await {
             Ok(Some(text)) => {
@@ -96,6 +98,22 @@ impl Tool for RetrieveToolOutputTool {
             Err(error) => Ok(ToolResult::error(error)),
         }
     }
+}
+
+fn parse_range(range: &Value) -> Result<RetrieveRange, ()> {
+    let start = match range.get("start").and_then(Value::as_u64) {
+        Some(value) => usize::try_from(value).map_err(|_| ())?,
+        None => 0,
+    };
+    let end = match range.get("end").and_then(Value::as_u64) {
+        Some(value) => usize::try_from(value).map_err(|_| ())?,
+        None => usize::MAX,
+    };
+    let unit = match range.get("unit").and_then(Value::as_str) {
+        Some("bytes") => RangeUnit::Bytes,
+        _ => RangeUnit::Lines,
+    };
+    Ok(RetrieveRange { start, end, unit })
 }
 
 fn miss_message(token: &str) -> String {

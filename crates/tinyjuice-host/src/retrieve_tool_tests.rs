@@ -2,6 +2,11 @@ use super::*;
 use serde_json::json;
 use std::sync::Mutex;
 
+#[test]
+fn range_endpoints_that_do_not_fit_usize_are_rejected() {
+    assert!(usize_from_range_endpoint(4_294_967_296, u32::MAX as u64).is_err());
+}
+
 #[derive(Debug)]
 struct LookupCall {
     token: String,
