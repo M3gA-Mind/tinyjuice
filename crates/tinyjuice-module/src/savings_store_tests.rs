@@ -313,7 +313,7 @@ async fn request_local_import_uses_the_call_storage_without_caching_it() {
 }
 
 #[tokio::test]
-async fn request_local_import_works_without_an_ordinary_storage_port() {
+async fn request_local_import_works_without_an_ordinary_storage_port() -> TestResult {
     let rig = rig(false).await?;
     let callback = tinystoragedrivers_testkit::memory_backend();
     let callback = callback.for_scope(&Scope::new("callback")?)?;
@@ -354,7 +354,7 @@ async fn request_local_import_works_without_an_ordinary_storage_port() {
 }
 
 #[tokio::test]
-async fn request_local_import_uses_callback_destination_when_ordinary_totals_exist() {
+async fn request_local_import_uses_callback_destination_when_ordinary_totals_exist() -> TestResult {
     let backend = tinystoragedrivers_testkit::memory_backend();
     let ordinary = backend.for_scope(&Scope::new("ordinary")?)?;
     let callback = backend.for_scope(&Scope::new("callback")?)?;

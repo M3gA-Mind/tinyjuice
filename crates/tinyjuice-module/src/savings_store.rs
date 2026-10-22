@@ -128,7 +128,6 @@ impl Savings {
         if stored
             .as_ref()
             .is_some_and(|stored| stored.doc.total.events != 0)
-            || self.ledger.stats().total.events != 0
         {
             log::debug!("[tinyjuice_module][savings] import skipped: totals exist");
             return Ok(false);
