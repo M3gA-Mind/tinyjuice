@@ -209,7 +209,7 @@ fn reapply_existing_blob_ttl(
             let bodies = list_all_prefix_async(Arc::clone(&blobs), &body_prefix).await?;
             let semantic_times =
                 list_timestamps_async(Arc::clone(&blobs), CCR_METADATA_PREFIX).await?;
-            let now_ms = unix_epoch_ms(SystemTime::now());
+            let now = SystemTime::now();
 
             for entry in bodies {
                 let Some(token) = entry.meta.key.strip_prefix(&body_prefix) else {
@@ -230,7 +230,7 @@ fn reapply_existing_blob_ttl(
                     body.meta.content_type.as_deref(),
                     written_at_ms,
                     ttl,
-                    now_ms,
+                    now,
                 )
                 .await?;
             }
@@ -261,12 +261,12 @@ fn reapply_existing_blob_ttl(
                         sidecar.meta.content_type.as_deref(),
                         Some(written_at_ms),
                         ttl,
-                        now_ms,
+                        now,
                     )
                     .await?;
                 }
             }
-            Ok(())
+            Ok::<(), String>(())
         }
     })
 }
@@ -278,7 +278,7 @@ async fn refresh_blob_expiry_async(
     content_type: Option<&str>,
     written_at_ms: Option<u64>,
     ttl: Option<Duration>,
-    now_ms: u64,
+    now: SystemTime,
 ) -> Result<(), String> {
     match ttl {
         None => blobs
@@ -288,7 +288,7 @@ async fn refresh_blob_expiry_async(
             .map_err(|error| error.to_string()),
         Some(ttl) => {
             let remaining = written_at_ms
-                .and_then(|written| remaining_ttl_from_epoch_ms(written, now_ms, ttl))
+                .and_then(|written| remaining_ttl_from_epoch_ms(written, now, ttl))
                 .unwrap_or(ttl);
             if remaining.is_zero() {
                 return Ok(());
