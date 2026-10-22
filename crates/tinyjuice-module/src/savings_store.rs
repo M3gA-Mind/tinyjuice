@@ -170,11 +170,11 @@ impl Savings {
         if state.loaded {
             return;
         }
-        let Some(connection) = connection else {
-            state.loaded = true;
-            return;
-        };
         if state.docs.is_none() {
+            let Some(connection) = connection else {
+                state.loaded = true;
+                return;
+            };
             if state
                 .last_connect_failure
                 .is_some_and(|at| at.elapsed() < self.cooldown)
