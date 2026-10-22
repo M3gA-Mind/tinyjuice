@@ -1537,7 +1537,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tinyjuice-bus",
- "tinytools 0.6.0 (git+https://github.com/tinyhumansai/tinytools?rev=3a01641f8ebd8a55656cd212f9a90638d958a447)",
+ "tinytools",
  "tokio",
  "tree-sitter",
  "tree-sitter-python",
@@ -1580,7 +1580,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tinyjuice-bus",
- "tinytools 0.6.0 (git+https://github.com/tinyhumansai/tinytools)",
+ "tinytools",
  "tokio",
  "uuid",
 ]
@@ -1696,17 +1696,6 @@ dependencies = [
 name = "tinytools"
 version = "0.6.0"
 source = "git+https://github.com/tinyhumansai/tinytools?rev=3a01641f8ebd8a55656cd212f9a90638d958a447#3a01641f8ebd8a55656cd212f9a90638d958a447"
-dependencies = [
- "anyhow",
- "async-trait",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "tinytools"
-version = "0.6.0"
-source = "git+https://github.com/tinyhumansai/tinytools#3a01641f8ebd8a55656cd212f9a90638d958a447"
 dependencies = [
  "anyhow",
  "async-trait",

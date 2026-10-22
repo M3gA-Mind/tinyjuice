@@ -1,7 +1,14 @@
 use super::*;
 use serde_json::json;
+use std::io::Cursor;
 use std::sync::Mutex;
 use tinyjuice_bus::repl::{Hit, ReplOutput};
+
+#[test]
+fn bounded_artifact_read_rejects_bytes_beyond_the_limit() {
+    let error = read_bounded_artifact_bytes(Cursor::new(b"four"), 3).unwrap_err();
+    assert!(error.contains("over the 3-byte limit"));
+}
 
 #[derive(Default)]
 struct Capture {

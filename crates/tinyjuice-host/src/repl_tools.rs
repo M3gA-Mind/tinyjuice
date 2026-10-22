@@ -1,5 +1,6 @@
 //! `tinytools::Tool` adapters that send REPL requests through the bus contract.
 
+use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
@@ -148,8 +149,23 @@ pub fn read_tool_result_artifact(dir: &Path, raw: &str, max_bytes: u64) -> Resul
             metadata.len()
         )));
     }
-    let bytes = std::fs::read(&canonical).map_err(not_found)?;
+    let file = std::fs::File::open(&canonical).map_err(not_found)?;
+    let bytes = read_bounded_artifact_bytes(file, max_bytes).map_err(|_| {
+        artifact_refused(&format!("that artifact exceeds the {max_bytes}-byte limit"))
+    })?;
     Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+fn read_bounded_artifact_bytes(reader: impl Read, max_bytes: u64) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    reader
+        .take(max_bytes.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("failed to read artifact: {error}"))?;
+    if bytes.len() as u64 > max_bytes {
+        return Err(format!("artifact is over the {max_bytes}-byte limit"));
+    }
+    Ok(bytes)
 }
 
 fn miss_message() -> &'static str {
