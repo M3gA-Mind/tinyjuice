@@ -5,6 +5,22 @@ use std::sync::Mutex;
 use tinyjuice_bus::repl::{Hit, ReplOutput};
 
 #[test]
+fn artifact_opened_after_path_replacement_is_rejected_by_file_identity() {
+    let temp = tempfile::tempdir().unwrap();
+    let expected = temp.path().join("authorized.txt");
+    let replacement = temp.path().join("outside.txt");
+    std::fs::write(&expected, "authorized").unwrap();
+    std::fs::write(&replacement, "outside").unwrap();
+
+    let expected_metadata = std::fs::metadata(expected).unwrap();
+    let opened_metadata = std::fs::File::open(replacement)
+        .unwrap()
+        .metadata()
+        .unwrap();
+    assert!(!same_open_file_identity(&expected_metadata, &opened_metadata));
+}
+
+#[test]
 fn bounded_artifact_read_rejects_bytes_beyond_the_limit() {
     let error = read_bounded_artifact_bytes(Cursor::new(b"four"), 3).unwrap_err();
     assert!(error.contains("over the 3-byte limit"));
