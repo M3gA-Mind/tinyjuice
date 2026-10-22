@@ -147,24 +147,16 @@ impl Savings {
             Precondition::Version(stored.version)
         });
 
-        let previous = self.ledger.stats();
-        self.ledger.replace(legacy);
-        let body = StoredSavings::from_aggregate(&self.ledger.stats(), now_ms());
-        if let Err(error) = docs
-            .put_as(SAVINGS_COLLECTION, SAVINGS_DOC_ID, &body, precondition)
+        let body = StoredSavings::from_aggregate(&legacy, now_ms());
+        docs.put_as(SAVINGS_COLLECTION, SAVINGS_DOC_ID, &body, precondition)
             .await
-        {
-            self.ledger.replace(previous);
-            return Err(tinybus::Error::failed(format!(
-                "savings could not be written: {error}"
-            )));
-        }
+            .map_err(|error| {
+                tinybus::Error::failed(format!("savings could not be written: {error}"))
+            })?;
 
-        // The document is now authoritative through the ordinary port already
-        // held by this state. Never retain the invocation-scoped handle.
-        state.loaded = true;
-        state.dirty = false;
-        state.reset_early = false;
+        // The callback port is invocation-scoped and may address a different
+        // document from the ordinary port. Keep its imported totals out of the
+        // ordinary in-memory ledger and leave the ordinary load state intact.
         Ok(true)
     }
 
