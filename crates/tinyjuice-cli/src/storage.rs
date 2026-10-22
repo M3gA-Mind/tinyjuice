@@ -20,7 +20,7 @@ const DEFAULT_CLI_CCR_TTL_SECS: u64 = 7 * 24 * 60 * 60;
 const CCR_METADATA_PREFIX: &str = "tinyjuice/ccr-metadata/";
 const CCR_METADATA_CONTENT_TYPE: &str = "application/vnd.tinyjuice.ccr-metadata";
 const CCR_IMPORT_PREFIX: &str = "tinyjuice/ccr-import-intent/";
-const CCR_TTL_CONFIGURATION_KEY: &str = "tinyjuice/ccr-config/applied-ttl";
+const CCR_STORAGE_CONFIGURATION_KEY: &str = "tinyjuice/ccr-config/applied-storage";
 
 #[allow(dead_code)] // The reducer binary uses inventory; the hook binary shares this module.
 pub(crate) struct Inventory {
@@ -64,7 +64,7 @@ fn configure_with_report(
     let _lock = acquire_process_lock(&process_lock_path(root))?;
     let discarded_legacy = import_legacy_files(root, &blobs, ttl)?;
     let store = BlobCcrStore::new(Arc::clone(&blobs), ttl).map_err(|error| error.to_string())?;
-    reapply_existing_blob_ttl_if_changed(&blobs, ttl)?;
+    reapply_existing_blob_ttl_if_changed(&blobs, ttl, max_bytes)?;
     let capped = CappedCcrStore {
         store,
         blobs: Arc::clone(&blobs),
@@ -202,19 +202,27 @@ fn prune(
 fn reapply_existing_blob_ttl_if_changed(
     blobs: &Arc<dyn BlobStore>,
     ttl: Option<Duration>,
+    max_bytes: Option<u64>,
 ) -> Result<(), String> {
-    let signature = ttl_signature(ttl);
-    let key = CCR_TTL_CONFIGURATION_KEY.to_owned();
+    let ttl_signature = ttl_signature(ttl);
+    let signature = storage_configuration_signature(ttl, max_bytes);
+    let key = CCR_STORAGE_CONFIGURATION_KEY.to_owned();
     let existing = run_blob({
         let blobs = Arc::clone(blobs);
         let key = key.clone();
         async move { blobs.get(&key).await }
     })?;
-    if existing.is_some_and(|blob| blob.bytes == signature.as_bytes()) {
-        return Ok(());
+    let existing_signature = existing.map(|blob| String::from_utf8_lossy(&blob.bytes).into_owned());
+    let existing_ttl_signature = existing_signature
+        .as_deref()
+        .map(|value| value.split('|').next().unwrap_or(value));
+    if existing_ttl_signature != Some(ttl_signature.as_str()) {
+        reapply_existing_blob_ttl(blobs, ttl)?;
     }
 
-    reapply_existing_blob_ttl(blobs, ttl)?;
+    if existing_signature.as_deref() == Some(signature.as_str()) {
+        return Ok(());
+    }
     run_blob({
         let blobs = Arc::clone(blobs);
         async move {
@@ -231,6 +239,25 @@ fn ttl_signature(ttl: Option<Duration>) -> String {
         Some(ttl) => format!("{}.{:09}", ttl.as_secs(), ttl.subsec_nanos()),
         None => "disabled".to_owned(),
     }
+}
+
+fn storage_configuration_signature(ttl: Option<Duration>, max_bytes: Option<u64>) -> String {
+    let max_bytes = max_bytes.map_or_else(|| "unlimited".to_owned(), |value| value.to_string());
+    format!("{}|{max_bytes}", ttl_signature(ttl))
+}
+
+fn stored_configuration_matches(
+    blobs: &Arc<dyn BlobStore>,
+    ttl: Option<Duration>,
+    max_bytes: Option<u64>,
+) -> Result<bool, String> {
+    let key = CCR_STORAGE_CONFIGURATION_KEY.to_owned();
+    let signature = storage_configuration_signature(ttl, max_bytes);
+    let existing = run_blob({
+        let blobs = Arc::clone(blobs);
+        async move { blobs.get(&key).await }
+    })?;
+    Ok(existing.is_none_or(|blob| blob.bytes == signature.as_bytes()))
 }
 
 fn reapply_existing_blob_ttl(
@@ -688,6 +715,19 @@ impl CcrStore for CappedCcrStore {
                 return CcrPutResult::new(token, false);
             }
         };
+        match stored_configuration_matches(&self.blobs, self.ttl, self.max_bytes) {
+            Ok(true) => {}
+            Ok(false) => {
+                log::debug!(
+                    "[tinyjuice_cli] CCR write skipped because store configuration is stale"
+                );
+                return CcrPutResult::new(token, false);
+            }
+            Err(error) => {
+                log::debug!("[tinyjuice_cli] CCR configuration check failed: {error}");
+                return CcrPutResult::new(token, false);
+            }
+        }
         if let Err(error) = delete_import_intent(Arc::clone(&self.blobs), &token) {
             log::debug!(
                 "[tinyjuice_cli] stale CCR import intent cleanup failed before write: {error}"
