@@ -72,9 +72,7 @@ fn released_blob_keys_are_rekeyed_before_the_store_reads_them() {
         .run({
             let blobs = Arc::clone(&blobs);
             let key = key.clone();
-            async move {
-                blobs.put(&key, bytes, content_type.as_deref()).await
-            }
+            async move { blobs.put(&key, bytes, content_type.as_deref()).await }
         })
         .unwrap()
         .unwrap();
