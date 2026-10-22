@@ -12,6 +12,12 @@ struct FailMetadataWrite {
     faults: FaultPlan,
 }
 
+#[derive(Debug)]
+struct FailMetadataRead {
+    inner: Arc<dyn BlobStore>,
+    faults: FaultPlan,
+}
+
 #[async_trait::async_trait]
 impl BlobStore for FailMetadataWrite {
     fn capabilities(&self) -> Capabilities {
@@ -35,6 +41,62 @@ impl BlobStore for FailMetadataWrite {
     }
 
     async fn get(&self, key: &str) -> StorageResult<Option<Blob>> {
+        self.inner.get(key).await
+    }
+
+    async fn get_range(
+        &self,
+        key: &str,
+        range: std::ops::Range<u64>,
+    ) -> StorageResult<Option<Vec<u8>>> {
+        self.inner.get_range(key, range).await
+    }
+
+    async fn head(&self, key: &str) -> StorageResult<Option<BlobMeta>> {
+        self.inner.head(key).await
+    }
+
+    async fn delete(&self, key: &str) -> StorageResult<bool> {
+        self.inner.delete(key).await
+    }
+
+    async fn list(&self, prefix: &str) -> StorageResult<Vec<BlobMeta>> {
+        self.inner.list(prefix).await
+    }
+
+    async fn list_page(
+        &self,
+        prefix: &str,
+        after: Option<&str>,
+        limit: usize,
+    ) -> StorageResult<BlobListPage> {
+        self.inner.list_page(prefix, after, limit).await
+    }
+}
+
+#[async_trait::async_trait]
+impl BlobStore for FailMetadataRead {
+    fn capabilities(&self) -> Capabilities {
+        self.inner.capabilities()
+    }
+
+    fn max_key_len(&self) -> usize {
+        self.inner.max_key_len()
+    }
+
+    async fn put(
+        &self,
+        key: &str,
+        bytes: Vec<u8>,
+        content_type: Option<&str>,
+    ) -> StorageResult<BlobMeta> {
+        self.inner.put(key, bytes, content_type).await
+    }
+
+    async fn get(&self, key: &str) -> StorageResult<Option<Blob>> {
+        if key.starts_with(CCR_METADATA_PREFIX) || key.starts_with(CCR_IMPORT_PREFIX) {
+            self.faults.check("metadata_get")?;
+        }
         self.inner.get(key).await
     }
 
@@ -313,7 +375,7 @@ fn capped_store_delegates_byte_ranges_to_the_durable_store() {
 }
 
 #[test]
-fn timestamp_listing_ignores_non_tokens_and_rejects_malformed_values() {
+fn timestamp_listing_ignores_non_tokens_and_discards_malformed_values() {
     let dir = tempfile::tempdir().unwrap();
     let blobs = open_file_blobs(dir.path()).unwrap();
     run_blob({
@@ -341,11 +403,71 @@ fn timestamp_listing_ignores_non_tokens_and_rejects_malformed_values() {
         }
     })
     .unwrap();
-    assert!(
-        read_semantic_time(blobs, token)
-            .unwrap_err()
-            .contains("invalid CCR timestamp")
+    assert_eq!(read_semantic_time(blobs, token).unwrap(), None);
+}
+
+#[test]
+fn malformed_timestamp_sidecars_do_not_abort_pruning_or_hide_backend_write_time() {
+    let dir = tempfile::tempdir().unwrap();
+    let blobs = open_file_blobs(dir.path()).unwrap();
+    let store = BlobCcrStore::new(Arc::clone(&blobs), None).unwrap();
+    let content = "recent content with malformed timestamp sidecars";
+    let body_token = tinyjuice::cache::short_hash(content);
+    assert!(store.put(content).retained());
+    let body_token_for_sidecar = body_token.clone();
+    let intent_token = "0123456789abcdef0123456789abcdef";
+    run_blob({
+        let blobs = Arc::clone(&blobs);
+        async move {
+            blobs
+                .put(
+                    &format!("{CCR_METADATA_PREFIX}{body_token_for_sidecar}"),
+                    b"not-a-number".to_vec(),
+                    None,
+                )
+                .await?;
+            blobs
+                .put(
+                    &format!("{CCR_IMPORT_PREFIX}{intent_token}"),
+                    vec![0xff],
+                    None,
+                )
+                .await
+        }
+    })
+    .unwrap();
+
+    assert_eq!(
+        prune(&blobs, Some(Duration::from_secs(3600)), None, None).unwrap(),
+        (0, 0, 1, content.len() as u64)
     );
+    assert_eq!(store.get(&body_token).as_deref(), Some(content));
+    assert_eq!(
+        read_semantic_time(Arc::clone(&blobs), &body_token).unwrap(),
+        None
+    );
+    assert_eq!(read_import_intent(blobs, intent_token).unwrap(), None);
+}
+
+#[test]
+fn timestamp_backend_read_errors_still_abort_pruning() {
+    let dir = tempfile::tempdir().unwrap();
+    let inner = open_file_blobs(dir.path()).unwrap();
+    let token = "0123456789abcdef0123456789abcdef";
+    write_semantic_time(
+        Arc::clone(&inner),
+        token,
+        unix_epoch_ms(SystemTime::now()),
+        None,
+    )
+    .unwrap();
+    let faults = FaultPlan::new();
+    faults.fail_operation_nth("metadata_get", 1, ErrorKind::Backend);
+    let failing: Arc<dyn BlobStore> = Arc::new(FailMetadataRead { inner, faults });
+
+    let error = prune(&failing, None, None, None).unwrap_err();
+
+    assert!(error.contains("injected failure for metadata_get"));
 }
 
 #[test]

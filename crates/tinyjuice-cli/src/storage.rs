@@ -554,14 +554,33 @@ fn read_timestamp(
     token: &str,
 ) -> Result<Option<u64>, String> {
     let key = format!("{prefix}{token}");
-    run_blob(async move { blobs.get(&key).await })?
-        .map(|blob| {
-            std::str::from_utf8(&blob.bytes)
-                .map_err(|error| format!("invalid CCR timestamp metadata: {error}"))?
-                .parse::<u64>()
-                .map_err(|error| format!("invalid CCR timestamp metadata: {error}"))
-        })
-        .transpose()
+    let lookup_key = key.clone();
+    let Some(blob) = run_blob({
+        let blobs = Arc::clone(&blobs);
+        async move { blobs.get(&lookup_key).await }
+    })?
+    else {
+        return Ok(None);
+    };
+    match parse_timestamp(&blob.bytes) {
+        Ok(timestamp) => Ok(Some(timestamp)),
+        Err(error) => {
+            log::warn!("[tinyjuice_cli] discarding malformed CCR timestamp sidecar {key}: {error}");
+            run_blob(async move { blobs.delete(&key).await })
+                .map(|_| ())
+                .map_err(|error| {
+                    format!("cannot remove malformed CCR timestamp sidecar: {error}")
+                })?;
+            Ok(None)
+        }
+    }
+}
+
+fn parse_timestamp(bytes: &[u8]) -> Result<u64, String> {
+    std::str::from_utf8(bytes)
+        .map_err(|error| format!("invalid CCR timestamp metadata: {error}"))?
+        .parse::<u64>()
+        .map_err(|error| format!("invalid CCR timestamp metadata: {error}"))
 }
 
 fn backend_written_at(blobs: Arc<dyn BlobStore>, key: &str) -> Result<Option<u64>, String> {
