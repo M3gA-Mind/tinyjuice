@@ -12,6 +12,19 @@ fn repl_tool_constants_match_declarations() {
 }
 
 #[test]
+fn juice_find_scope_schema_preserves_the_existing_wire_contract() {
+    let find = repl_tool_declarations()
+        .into_iter()
+        .find(|declaration| declaration.name == "juice_find")
+        .expect("juice_find is declared");
+
+    assert_eq!(
+        find.parameters["properties"]["scope"],
+        serde_json::json!({ "type": "string" })
+    );
+}
+
+#[test]
 fn retrieve_declaration_matches_the_shipped_token_and_range_contract() {
     assert_eq!(RETRIEVE, "juice_retrieve");
 
