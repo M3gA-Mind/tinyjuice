@@ -131,8 +131,13 @@ fn reduce_json(args: Vec<String>) -> Result<(), String> {
 }
 
 fn post_tool_use_hook(host: TinyJuiceHost) -> Result<(), String> {
-    configure_cli_cache()?;
     let input = read_input(None)?;
+    if configure_cli_cache().is_err() {
+        // A hook runs as a short-lived process, so its in-memory CCR entries
+        // would disappear before the host can retrieve them. Preserve the
+        // original tool output when durable recovery is unavailable.
+        return Ok(());
+    }
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

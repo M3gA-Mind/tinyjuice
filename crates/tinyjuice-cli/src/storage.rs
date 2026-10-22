@@ -247,8 +247,17 @@ fn import_legacy_files(
         }
         let content = match std::fs::read_to_string(entry.path()) {
             Ok(content) => content,
-            Err(error) => return Err(format!("cannot import legacy CCR entry {token}: {error}")),
+            Err(error) => {
+                log::warn!("[tinyjuice_cli] skipping unreadable legacy CCR entry {token}: {error}");
+                continue;
+            }
         };
+        if tinyjuice::cache::short_hash(&content) != token {
+            log::warn!(
+                "[tinyjuice_cli] skipping legacy CCR entry {token}: content hash mismatch"
+            );
+            continue;
+        }
         let modified = entry
             .metadata()
             .and_then(|metadata| metadata.modified())
@@ -560,11 +569,17 @@ fn run_blob<T: Send + 'static>(
 ) -> Result<T, String> {
     // Each helper owns a separate current-thread runtime. Blob engines in this
     // CLI are self-contained and do not depend on work from another runtime.
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(|error| format!("cannot start storage runtime: {error}"))?;
-    runtime.block_on(future).map_err(|error| error.to_string())
+    // Run it on a dedicated thread because callers such as CcrStore::put can
+    // execute synchronously from inside an active Tokio runtime.
+    std::thread::spawn(move || {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|error| format!("cannot start storage runtime: {error}"))?;
+        runtime.block_on(future).map_err(|error| error.to_string())
+    })
+    .join()
+    .map_err(|_| "storage worker thread panicked".to_owned())?
 }
 
 fn is_token(token: &str) -> bool {
