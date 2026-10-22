@@ -12,6 +12,8 @@ fn artifact_opened_after_path_replacement_is_rejected_by_file_identity() {
     std::fs::write(&expected, "authorized").unwrap();
     std::fs::write(&replacement, "outside").unwrap();
 
+    let canonical_dir = std::fs::canonicalize(temp.path()).unwrap();
+    let expected_path = std::fs::canonicalize(&expected).unwrap();
     let expected_metadata = std::fs::metadata(&expected).unwrap();
     let opened_file = std::fs::File::open(&replacement).unwrap();
     let opened_metadata = opened_file.metadata().unwrap();
@@ -22,8 +24,8 @@ fn artifact_opened_after_path_replacement_is_rejected_by_file_identity() {
         &opened_file,
     ));
     let error = validate_opened_artifact(
-        temp.path(),
-        &expected,
+        &canonical_dir,
+        &expected_path,
         &expected_metadata,
         &opened_metadata,
         &opened_file,
@@ -38,6 +40,8 @@ fn opened_artifact_growth_is_checked_against_the_size_cap() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("artifact.txt");
     std::fs::write(&path, "small").unwrap();
+    let canonical_dir = std::fs::canonicalize(temp.path()).unwrap();
+    let canonical_path = std::fs::canonicalize(&path).unwrap();
     let expected_metadata = std::fs::metadata(&path).unwrap();
     let file = std::fs::File::open(&path).unwrap();
     std::fs::OpenOptions::new()
@@ -49,8 +53,8 @@ fn opened_artifact_growth_is_checked_against_the_size_cap() {
     let opened_metadata = file.metadata().unwrap();
 
     let error = validate_opened_artifact(
-        temp.path(),
-        &path,
+        &canonical_dir,
+        &canonical_path,
         &expected_metadata,
         &opened_metadata,
         &file,
@@ -68,12 +72,20 @@ fn opened_artifact_outside_tool_results_is_refused_even_when_metadata_matches() 
     let outside = workspace.path().join("outside.txt");
     std::fs::write(&outside, "outside").unwrap();
 
+    let canonical_artifact_dir = std::fs::canonicalize(&artifact_dir).unwrap();
+    let outside_path = std::fs::canonicalize(&outside).unwrap();
     let expected = std::fs::metadata(&outside).unwrap();
     let file = std::fs::File::open(&outside).unwrap();
     let opened = file.metadata().unwrap();
-    let error =
-        validate_opened_artifact(&artifact_dir, &outside, &expected, &opened, &file, u64::MAX)
-            .expect_err("opened handle outside the artifact directory must be refused");
+    let error = validate_opened_artifact(
+        &canonical_artifact_dir,
+        &outside_path,
+        &expected,
+        &opened,
+        &file,
+        u64::MAX,
+    )
+    .expect_err("opened handle outside the artifact directory must be refused");
     assert!(error.contains("that path resolves outside the tool-results directory"));
 }
 
