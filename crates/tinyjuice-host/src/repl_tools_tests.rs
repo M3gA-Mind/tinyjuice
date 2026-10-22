@@ -1,8 +1,93 @@
 use super::*;
 use serde_json::json;
-use std::io::Cursor;
+use std::io::{Cursor, Write};
 use std::sync::Mutex;
 use tinyjuice_bus::repl::{Hit, ReplOutput};
+
+#[test]
+fn artifact_opened_after_path_replacement_is_rejected_by_file_identity() {
+    let temp = tempfile::tempdir().unwrap();
+    let expected = temp.path().join("authorized.txt");
+    let replacement = temp.path().join("outside.txt");
+    std::fs::write(&expected, "authorized").unwrap();
+    std::fs::write(&replacement, "outside").unwrap();
+
+    let canonical_dir = std::fs::canonicalize(temp.path()).unwrap();
+    let expected_path = std::fs::canonicalize(&expected).unwrap();
+    let expected_metadata = std::fs::metadata(&expected).unwrap();
+    let opened_file = std::fs::File::open(&replacement).unwrap();
+    let opened_metadata = opened_file.metadata().unwrap();
+    assert!(!same_open_file_identity(
+        &expected_metadata,
+        &opened_metadata,
+        &expected,
+        &opened_file,
+    ));
+    let error = validate_opened_artifact(
+        &canonical_dir,
+        &expected_path,
+        &expected_metadata,
+        &opened_metadata,
+        &opened_file,
+        u64::MAX,
+    )
+    .expect_err("replacement file identity must be refused");
+    assert!(error.contains("that artifact changed while its access was being checked"));
+}
+
+#[test]
+fn opened_artifact_growth_is_checked_against_the_size_cap() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("artifact.txt");
+    std::fs::write(&path, "small").unwrap();
+    let canonical_dir = std::fs::canonicalize(temp.path()).unwrap();
+    let canonical_path = std::fs::canonicalize(&path).unwrap();
+    let expected_metadata = std::fs::metadata(&path).unwrap();
+    let file = std::fs::File::open(&path).unwrap();
+    std::fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .unwrap()
+        .write_all(b"-grew")
+        .unwrap();
+    let opened_metadata = file.metadata().unwrap();
+
+    let error = validate_opened_artifact(
+        &canonical_dir,
+        &canonical_path,
+        &expected_metadata,
+        &opened_metadata,
+        &file,
+        expected_metadata.len(),
+    )
+    .expect_err("growth after the initial stat must not exceed the read cap");
+    assert!(error.contains("over the 5-byte limit"));
+}
+
+#[test]
+fn opened_artifact_outside_tool_results_is_refused_even_when_metadata_matches() {
+    let workspace = tempfile::tempdir().unwrap();
+    let artifact_dir = workspace.path().join("artifacts/tool-results");
+    std::fs::create_dir_all(&artifact_dir).unwrap();
+    let outside = workspace.path().join("outside.txt");
+    std::fs::write(&outside, "outside").unwrap();
+
+    let canonical_artifact_dir = std::fs::canonicalize(&artifact_dir).unwrap();
+    let outside_path = std::fs::canonicalize(&outside).unwrap();
+    let expected = std::fs::metadata(&outside).unwrap();
+    let file = std::fs::File::open(&outside).unwrap();
+    let opened = file.metadata().unwrap();
+    let error = validate_opened_artifact(
+        &canonical_artifact_dir,
+        &outside_path,
+        &expected,
+        &opened,
+        &file,
+        u64::MAX,
+    )
+    .expect_err("opened handle outside the artifact directory must be refused");
+    assert!(error.contains("that path resolves outside the tool-results directory"));
+}
 
 #[test]
 fn bounded_artifact_read_rejects_bytes_beyond_the_limit() {

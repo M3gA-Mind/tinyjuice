@@ -150,10 +150,216 @@ pub fn read_tool_result_artifact(dir: &Path, raw: &str, max_bytes: u64) -> Resul
         )));
     }
     let file = std::fs::File::open(&canonical).map_err(not_found)?;
+    let opened_metadata = file.metadata().map_err(not_found)?;
+    validate_opened_artifact(
+        &canonical_dir,
+        &canonical,
+        &metadata,
+        &opened_metadata,
+        &file,
+        max_bytes,
+    )?;
     let bytes = read_bounded_artifact_bytes(file, max_bytes).map_err(|_| {
         artifact_refused(&format!("that artifact exceeds the {max_bytes}-byte limit"))
     })?;
     Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+fn validate_opened_artifact(
+    canonical_dir: &Path,
+    expected_path: &Path,
+    expected: &std::fs::Metadata,
+    opened: &std::fs::Metadata,
+    file: &std::fs::File,
+    max_bytes: u64,
+) -> Result<(), String> {
+    let opened_path = opened_file_path(file)
+        .ok_or_else(|| artifact_refused("the opened artifact's location could not be verified"))?;
+    if !opened_path.starts_with(canonical_dir) {
+        return Err(artifact_refused(
+            "that path resolves outside the tool-results directory",
+        ));
+    }
+    if opened_path != expected_path {
+        return Err(artifact_refused(
+            "that artifact changed while its access was being checked",
+        ));
+    }
+    if !same_open_file_identity(expected, opened, expected_path, file) {
+        return Err(artifact_refused(
+            "that artifact changed while its access was being checked",
+        ));
+    }
+    if opened.len() > max_bytes {
+        return Err(artifact_refused(&format!(
+            "that artifact is {} bytes, over the {max_bytes}-byte limit",
+            opened.len()
+        )));
+    }
+    Ok(())
+}
+
+fn opened_file_path(file: &std::fs::File) -> Option<std::path::PathBuf> {
+    #[cfg(target_os = "macos")]
+    {
+        macos_opened_file_path(file).and_then(|path| std::fs::canonicalize(path).ok())
+    }
+
+    #[cfg(target_os = "linux")]
+    let handle_path = {
+        use std::os::fd::AsRawFd;
+        std::path::PathBuf::from(format!("/proc/self/fd/{}", file.as_raw_fd()))
+    };
+
+    #[cfg(all(unix, not(any(target_os = "linux", target_os = "macos"))))]
+    let handle_path = {
+        use std::os::fd::AsRawFd;
+        std::path::PathBuf::from(format!("/dev/fd/{}", file.as_raw_fd()))
+    };
+
+    #[cfg(windows)]
+    let handle_path = windows_opened_file_path(file)?;
+
+    #[cfg(any(target_os = "linux", all(unix, not(target_os = "macos")), windows))]
+    {
+        std::fs::canonicalize(handle_path).ok()
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn macos_opened_file_path(file: &std::fs::File) -> Option<std::path::PathBuf> {
+    use std::os::{fd::AsRawFd, unix::ffi::OsStringExt};
+
+    const F_GETPATH: i32 = 50;
+    const PATH_MAX: usize = 1024;
+
+    unsafe extern "C" {
+        fn fcntl(fd: i32, command: i32, ...) -> i32;
+    }
+
+    let mut buffer = [0i8; PATH_MAX];
+    let result = unsafe { fcntl(file.as_raw_fd(), F_GETPATH, buffer.as_mut_ptr()) };
+    if result == -1 {
+        return None;
+    }
+    let path = unsafe { std::ffi::CStr::from_ptr(buffer.as_ptr()) };
+    Some(std::path::PathBuf::from(std::ffi::OsString::from_vec(
+        path.to_bytes().to_vec(),
+    )))
+}
+
+#[cfg(windows)]
+fn windows_opened_file_path(file: &std::fs::File) -> Option<std::path::PathBuf> {
+    use std::os::windows::{ffi::OsStringExt, io::AsRawHandle};
+
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetFinalPathNameByHandleW(
+            file: *mut std::ffi::c_void,
+            file_path: *mut u16,
+            file_path_size: u32,
+            flags: u32,
+        ) -> u32;
+    }
+
+    let handle = file.as_raw_handle().cast();
+    // A zero-sized call reports the required buffer length. The API returns a
+    // normalized, absolute path for the already-open handle, including the
+    // Windows device prefix that canonicalize also uses.
+    let required = unsafe { GetFinalPathNameByHandleW(handle, std::ptr::null_mut(), 0, 0) };
+    if required == 0 {
+        return None;
+    }
+    let mut buffer = vec![0u16; required as usize + 1];
+    let written =
+        unsafe { GetFinalPathNameByHandleW(handle, buffer.as_mut_ptr(), buffer.len() as u32, 0) };
+    if written == 0 || written as usize >= buffer.len() {
+        return None;
+    }
+    Some(std::path::PathBuf::from(std::ffi::OsString::from_wide(
+        &buffer[..written as usize],
+    )))
+}
+
+fn same_open_file_identity(
+    expected: &std::fs::Metadata,
+    opened: &std::fs::Metadata,
+    expected_path: &Path,
+    opened_file: &std::fs::File,
+) -> bool {
+    #[cfg(not(windows))]
+    let _ = (expected_path, opened_file);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        expected.dev() == opened.dev() && expected.ino() == opened.ino()
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::io::AsRawHandle;
+
+        #[repr(C)]
+        #[derive(Default)]
+        #[allow(dead_code)]
+        struct FileTime {
+            low: u32,
+            high: u32,
+        }
+
+        #[repr(C)]
+        #[derive(Default)]
+        #[allow(dead_code)]
+        struct ByHandleFileInformation {
+            attributes: u32,
+            creation_time: FileTime,
+            last_access_time: FileTime,
+            last_write_time: FileTime,
+            volume_serial_number: u32,
+            file_size_high: u32,
+            file_size_low: u32,
+            number_of_links: u32,
+            file_index_high: u32,
+            file_index_low: u32,
+        }
+
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn GetFileInformationByHandle(
+                file: *mut std::ffi::c_void,
+                information: *mut ByHandleFileInformation,
+            ) -> i32;
+        }
+
+        fn identity(file: &std::fs::File) -> Option<(u32, u32, u32)> {
+            let mut information = ByHandleFileInformation::default();
+            let succeeded = unsafe {
+                GetFileInformationByHandle(file.as_raw_handle().cast(), &mut information)
+            };
+            (succeeded != 0).then_some((
+                information.volume_serial_number,
+                information.file_index_high,
+                information.file_index_low,
+            ))
+        }
+
+        let expected_file = match std::fs::File::open(expected_path) {
+            Ok(file) => file,
+            Err(_) => return false,
+        };
+        let _ = (expected, opened);
+        identity(&expected_file).is_some_and(|expected| identity(opened_file) == Some(expected))
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (expected, opened, expected_path, opened_file);
+        false
+    }
 }
 
 fn read_bounded_artifact_bytes(reader: impl Read, max_bytes: u64) -> Result<Vec<u8>, String> {
