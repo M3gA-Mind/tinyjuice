@@ -28,14 +28,14 @@ serde_json = "1"
 # The CCR store's durable tier is blobs on the host's storage ports, reached
 # over the storage bus. The module has no storage backend or file of its own.
 tinyjuice-drivers = { path = "../tinyjuice-drivers" }
-tinystoragedrivers-api = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "8a8bd701cc497a4ca099d98cae11aa684dd051aa" }
-tinystoragedrivers-types = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "8a8bd701cc497a4ca099d98cae11aa684dd051aa" }
-tinystoragedrivers-busproxy = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "8a8bd701cc497a4ca099d98cae11aa684dd051aa" }
+tinystoragedrivers-api = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c1da1bf19bac8df675d36d48a7592e59ee7ff81c" }
+tinystoragedrivers-types = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c1da1bf19bac8df675d36d48a7592e59ee7ff81c" }
+tinystoragedrivers-busproxy = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c1da1bf19bac8df675d36d48a7592e59ee7ff81c" }
 log = "0.4"
 
 [dev-dependencies]
 # Tests serve the storage objects on the in-memory broker the module connects to.
-tinystoragedrivers-testkit = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "8a8bd701cc497a4ca099d98cae11aa684dd051aa" }
+tinystoragedrivers-testkit = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c1da1bf19bac8df675d36d48a7592e59ee7ff81c" }
 tinybus = { version = "=0.1.6", git = "https://github.com/tinyhumansai/tinybus", rev = "24ec2ccafcc98fab35fa10ffcbcefa87eb32e3e8", default-features = false, features = ["test-support"] }
 tempfile = "3"
 async-trait = "0.1"

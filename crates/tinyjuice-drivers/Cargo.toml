@@ -14,13 +14,13 @@ publish = false
 [dependencies]
 tinyjuice-bus = { path = "../tinyjuice-bus" }
 tinyjuice = { path = "../..", default-features = false }
-tinystoragedrivers-api = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "8a8bd701cc497a4ca099d98cae11aa684dd051aa" }
-tinystoragedrivers-types = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "8a8bd701cc497a4ca099d98cae11aa684dd051aa" }
+tinystoragedrivers-api = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c1da1bf19bac8df675d36d48a7592e59ee7ff81c" }
+tinystoragedrivers-types = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c1da1bf19bac8df675d36d48a7592e59ee7ff81c" }
 log = "0.4"
 tokio = { version = "1", features = ["rt"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 async-trait = "0.1"
-tinystoragedrivers-testkit = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "8a8bd701cc497a4ca099d98cae11aa684dd051aa" }
-tinystoragedrivers-blob = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "8a8bd701cc497a4ca099d98cae11aa684dd051aa" }
+tinystoragedrivers-testkit = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c1da1bf19bac8df675d36d48a7592e59ee7ff81c" }
+tinystoragedrivers-blob = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c1da1bf19bac8df675d36d48a7592e59ee7ff81c" }
