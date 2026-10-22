@@ -276,8 +276,26 @@ fn same_open_file_identity(
 
         #[repr(C)]
         #[derive(Default)]
+        #[allow(dead_code)]
+        struct FileTime {
+            low: u32,
+            high: u32,
+        }
+
+        #[repr(C)]
+        #[derive(Default)]
+        #[allow(dead_code)]
         struct ByHandleFileInformation {
-            fields: [u32; 13],
+            attributes: u32,
+            creation_time: FileTime,
+            last_access_time: FileTime,
+            last_write_time: FileTime,
+            volume_serial_number: u32,
+            file_size_high: u32,
+            file_size_low: u32,
+            number_of_links: u32,
+            file_index_high: u32,
+            file_index_low: u32,
         }
 
         #[link(name = "kernel32")]
@@ -293,13 +311,11 @@ fn same_open_file_identity(
             let succeeded = unsafe {
                 GetFileInformationByHandle(file.as_raw_handle().cast(), &mut information)
             };
-            (succeeded != 0).then(|| {
-                (
-                    information.fields[7],
-                    information.fields[11],
-                    information.fields[12],
-                )
-            })
+            (succeeded != 0).then_some((
+                information.volume_serial_number,
+                information.file_index_high,
+                information.file_index_low,
+            ))
         }
 
         let expected_file = match std::fs::File::open(expected_path) {
