@@ -78,7 +78,6 @@ fn run() -> Result<(), String> {
 }
 
 fn reduce_json(args: Vec<String>) -> Result<(), String> {
-    configure_cli_cache()?;
     let mut host_override = None;
     let mut path = None;
     let mut index = 0;
@@ -111,6 +110,7 @@ fn reduce_json(args: Vec<String>) -> Result<(), String> {
         }
     }
 
+    configure_cli_cache()?;
     let input = read_input(path.as_deref())?;
     let value = serde_json::from_str(&input).map_err(|error| format!("invalid JSON: {error}"))?;
     let mut request = request_from_json_value(value).map_err(|error| error.to_string())?;
