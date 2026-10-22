@@ -4,6 +4,7 @@ use super::*;
 fn owner_collection_and_blob_key_contracts_are_stable() {
     assert_eq!(collections(), vec![CollectionSpec::new("juice.savings")]);
     assert_eq!(CCR_PREFIX, "juice/ccr");
+    assert_eq!(CCR_BLOB_PREFIX, "juice/ccr/");
     assert_eq!(LEGACY_CCR_PREFIX, "tinyjuice_ccr/");
 }
 
