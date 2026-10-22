@@ -140,6 +140,33 @@ fn collection_removes_and_reports_non_utf8_legacy_entries() {
 }
 
 #[test]
+fn startup_prunes_expired_blobs_with_ttl_without_a_byte_cap() {
+    let dir = tempfile::tempdir().unwrap();
+    let blobs = open_file_blobs(dir.path()).unwrap();
+    let content = "expired before a TTL-only restart";
+    let store = BlobCcrStore::new(Arc::clone(&blobs), None).unwrap();
+    let put = store.put(content);
+    assert!(put.retained());
+    write_semantic_time(
+        Arc::clone(&blobs),
+        put.token(),
+        unix_epoch_ms(SystemTime::now() - Duration::from_secs(60)),
+        None,
+    )
+    .unwrap();
+
+    configure_with_report(dir.path(), Some(Duration::from_secs(1)), None).unwrap();
+
+    assert!(
+        BlobCcrStore::new(open_file_blobs(dir.path()).unwrap(), None)
+            .unwrap()
+            .get(put.token())
+            .is_none(),
+        "a TTL-only startup sweep removes previously stored expired content"
+    );
+}
+
+#[test]
 fn removing_legacy_entries_reports_inspection_and_removal_errors() {
     let dir = tempfile::tempdir().unwrap();
     let token = "0123456789abcdef0123456789abcdef";
