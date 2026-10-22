@@ -43,6 +43,25 @@ async fn records_land_as_a_snake_case_document_with_ms_time() -> TestResult {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_undecodable_totals_doc_is_replaced_on_the_next_persist() -> TestResult {
+    let rig = rig(true).await?;
+    let docs = Arc::clone(rig.backend.for_scope(&Scope::new("local")?)?.documents());
+    docs.put(
+        SAVINGS_COLLECTION,
+        SAVINGS_DOC_ID,
+        serde_json::json!({ "total": "not a bucket" }),
+        tinystoragedrivers_types::Precondition::None,
+    )
+    .await?;
+    Savings::new()
+        .record(Some(&rig.module), &req(200, 100))
+        .await;
+    let body = stored(&rig).await?.ok_or("document kept")?;
+    assert_eq!(body["total"]["tokens_saved"], 100);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_new_process_resumes_the_stored_totals() -> TestResult {
     let rig = rig(true).await?;
     Savings::new()

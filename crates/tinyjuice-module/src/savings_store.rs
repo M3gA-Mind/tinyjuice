@@ -14,7 +14,7 @@ use tinyjuice_bus::savings::{
 };
 use tinyjuice_bus::storage::SAVINGS_COLLECTION;
 use tinystoragedrivers_api::{DocumentStore, DocumentStoreExt, Storage};
-use tinystoragedrivers_types::Precondition;
+use tinystoragedrivers_types::{ErrorKind, Precondition};
 
 /// Working state behind one lock, so load, change and write never interleave.
 #[derive(Default)]
@@ -185,6 +185,14 @@ impl Savings {
             .await
         {
             Ok(found) => found.map(|found| found.doc.into_aggregate()),
+            // A document that can never decode would block every later write;
+            // treat it as absent so the next persist replaces it.
+            Err(error) if error.kind() == ErrorKind::Serialization => {
+                log::warn!(
+                    "[tinyjuice_module][savings] stored totals undecodable, replacing: {error}"
+                );
+                None
+            }
             Err(error) => {
                 log::warn!("[tinyjuice_module][savings] load failed, retrying later: {error}");
                 return;
