@@ -270,15 +270,7 @@ fn import_legacy_files(
         };
         if tinyjuice::cache::short_hash(&content) != token {
             log::warn!("[tinyjuice_cli] skipping legacy CCR entry {token}: content hash mismatch");
-            let size = entry
-                .metadata()
-                .map_err(|error| {
-                    format!("cannot inspect corrupt legacy CCR entry {token}: {error}")
-                })?
-                .len();
-            std::fs::remove_file(entry.path()).map_err(|error| {
-                format!("cannot remove corrupt legacy CCR entry {token}: {error}")
-            })?;
+            let size = remove_legacy_entry(&entry.path(), &token, "corrupt")?;
             removed_legacy = removed_legacy.saturating_add(1);
             removed_legacy_bytes = removed_legacy_bytes.saturating_add(size);
             continue;
@@ -294,15 +286,7 @@ fn import_legacy_files(
             Some(ttl) => {
                 let remaining = remaining_ttl(modified, SystemTime::now(), ttl);
                 if remaining.is_none() {
-                    let size = entry
-                        .metadata()
-                        .map_err(|error| {
-                            format!("cannot inspect expired legacy CCR entry {token}: {error}")
-                        })?
-                        .len();
-                    std::fs::remove_file(entry.path()).map_err(|error| {
-                        format!("cannot remove expired legacy CCR entry {token}: {error}")
-                    })?;
+                    let size = remove_legacy_entry(&entry.path(), &token, "expired")?;
                     removed_legacy = removed_legacy.saturating_add(1);
                     removed_legacy_bytes = removed_legacy_bytes.saturating_add(size);
                     continue;
@@ -369,6 +353,15 @@ fn import_legacy_files(
             .map_err(|error| format!("cannot remove imported CCR entry {token}: {error}"))?;
     }
     Ok((removed_legacy, removed_legacy_bytes))
+}
+
+fn remove_legacy_entry(path: &Path, token: &str, reason: &str) -> Result<u64, String> {
+    let size = std::fs::metadata(path)
+        .map_err(|error| format!("cannot inspect {reason} legacy CCR entry {token}: {error}"))?
+        .len();
+    std::fs::remove_file(path)
+        .map_err(|error| format!("cannot remove {reason} legacy CCR entry {token}: {error}"))?;
+    Ok(size)
 }
 
 fn remaining_ttl(modified: SystemTime, now: SystemTime, ttl: Duration) -> Option<Duration> {
