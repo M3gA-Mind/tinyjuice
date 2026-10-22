@@ -155,8 +155,9 @@ impl Savings {
             })?;
 
         // The callback port is invocation-scoped and may address a different
-        // document from the ordinary port. Keep its imported totals out of the
-        // ordinary in-memory ledger and leave the ordinary load state intact.
+        // document from the ordinary port. Invalidate the cached ledger so the
+        // next ordinary operation reloads only through the ordinary port.
+        state.loaded = false;
         Ok(true)
     }
 
