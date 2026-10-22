@@ -287,9 +287,13 @@ async fn refresh_blob_expiry_async(
             .map(|_| ())
             .map_err(|error| error.to_string()),
         Some(ttl) => {
-            let remaining = written_at_ms
-                .and_then(|written| remaining_ttl_from_epoch_ms(written, now, ttl))
-                .unwrap_or(ttl);
+            let remaining = match written_at_ms {
+                Some(written) => remaining_ttl_from_epoch_ms(written, now, ttl),
+                None => Some(ttl),
+            };
+            let Some(remaining) = remaining else {
+                return Ok(());
+            };
             if remaining.is_zero() {
                 return Ok(());
             }
