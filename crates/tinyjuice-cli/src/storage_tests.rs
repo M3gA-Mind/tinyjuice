@@ -99,6 +99,35 @@ fn configure_and_inventory_report_invalid_storage_paths() {
 }
 
 #[test]
+fn legacy_import_skips_corrupt_entries_and_continues_importing_valid_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let valid_content = "valid legacy entry still imports";
+    let valid_token = tinyjuice::cache::short_hash(valid_content);
+    let mismatch_token = "0123456789abcdef0123456789abcdef";
+    let unreadable_token = "fedcba9876543210fedcba9876543210";
+    let valid_path = dir.path().join(&valid_token);
+    let mismatch_path = dir.path().join(mismatch_token);
+    let unreadable_path = dir.path().join(unreadable_token);
+    std::fs::write(&valid_path, valid_content).unwrap();
+    std::fs::write(&mismatch_path, "content does not match its token").unwrap();
+    std::fs::write(&unreadable_path, [0xff, 0xfe]).unwrap();
+    let blobs = open_file_blobs(dir.path()).unwrap();
+
+    import_legacy_files(dir.path(), &blobs, None).unwrap();
+
+    assert!(!valid_path.exists(), "the valid legacy file is imported");
+    assert!(mismatch_path.exists(), "the mismatched source is preserved");
+    assert!(unreadable_path.exists(), "the unreadable source is preserved");
+    assert_eq!(
+        BlobCcrStore::new(blobs, None)
+            .unwrap()
+            .get(&valid_token)
+            .as_deref(),
+        Some(valid_content)
+    );
+}
+
+#[test]
 fn inventory_counts_ignored_entries_and_returns_imported_blobs() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("not-a-token"), "ignored").unwrap();
@@ -412,6 +441,26 @@ fn failed_timestamp_refresh_does_not_leave_an_old_age_for_gc() {
         "the physical write time must replace stale imported age when timestamp refresh fails"
     );
     assert_eq!(original.get(&token).as_deref(), Some(content));
+}
+
+#[test]
+fn capped_store_put_works_inside_a_current_thread_runtime() {
+    let dir = tempfile::tempdir().unwrap();
+    let blobs = open_file_blobs(dir.path()).unwrap();
+    let capped = CappedCcrStore {
+        store: BlobCcrStore::new(Arc::clone(&blobs), None).unwrap(),
+        blobs,
+        ttl: Some(Duration::from_secs(600)),
+        max_bytes: Some(1024),
+    };
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+
+    let result = runtime.block_on(async { capped.put("retained from an active runtime") });
+
+    assert!(result.retained());
 }
 
 #[test]
