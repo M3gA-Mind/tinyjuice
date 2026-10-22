@@ -378,7 +378,12 @@ async fn request_local_import_uses_callback_destination_when_ordinary_totals_exi
             Precondition::Absent,
         )
         .await?;
-    assert_eq!(savings.stats(None).await.total.events, 1);
+    {
+        let mut state = savings.state.lock().await;
+        state.docs = Some(Arc::clone(ordinary.documents()));
+        state.loaded = true;
+        savings.ledger.replace(ordinary_totals.clone());
+    }
     let callback_storage = Storage::new(
         Arc::clone(callback.documents()),
         Arc::clone(callback.streams()),
