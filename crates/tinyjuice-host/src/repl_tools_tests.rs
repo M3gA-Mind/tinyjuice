@@ -1,6 +1,6 @@
 use super::*;
 use serde_json::json;
-use std::io::Cursor;
+use std::io::{Cursor, Write};
 use std::sync::Mutex;
 use tinyjuice_bus::repl::{Hit, ReplOutput};
 
@@ -15,6 +15,12 @@ fn artifact_opened_after_path_replacement_is_rejected_by_file_identity() {
     let expected_metadata = std::fs::metadata(&expected).unwrap();
     let opened_file = std::fs::File::open(&replacement).unwrap();
     let opened_metadata = opened_file.metadata().unwrap();
+    assert!(!same_open_file_identity(
+        &expected_metadata,
+        &opened_metadata,
+        &expected,
+        &opened_file,
+    ));
     let error = validate_opened_artifact(
         temp.path(),
         &expected,
@@ -25,6 +31,33 @@ fn artifact_opened_after_path_replacement_is_rejected_by_file_identity() {
     )
     .expect_err("replacement file identity must be refused");
     assert!(error.contains("that artifact changed while its access was being checked"));
+}
+
+#[test]
+fn opened_artifact_growth_is_checked_against_the_size_cap() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("artifact.txt");
+    std::fs::write(&path, "small").unwrap();
+    let expected_metadata = std::fs::metadata(&path).unwrap();
+    let file = std::fs::File::open(&path).unwrap();
+    std::fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .unwrap()
+        .write_all(b"-grew")
+        .unwrap();
+    let opened_metadata = file.metadata().unwrap();
+
+    let error = validate_opened_artifact(
+        temp.path(),
+        &path,
+        &expected_metadata,
+        &opened_metadata,
+        &file,
+        expected_metadata.len(),
+    )
+    .expect_err("growth after the initial stat must not exceed the read cap");
+    assert!(error.contains("over the 5-byte limit"));
 }
 
 #[test]

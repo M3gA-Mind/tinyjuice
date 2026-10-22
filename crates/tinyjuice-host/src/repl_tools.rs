@@ -185,7 +185,7 @@ fn validate_opened_artifact(
             "that artifact changed while its access was being checked",
         ));
     }
-    if !same_open_file_identity(expected, opened) {
+    if !same_open_file_identity(expected, opened, expected_path, file) {
         return Err(artifact_refused(
             "that artifact changed while its access was being checked",
         ));
@@ -255,7 +255,15 @@ fn windows_opened_file_path(file: &std::fs::File) -> Option<std::path::PathBuf> 
     )))
 }
 
-fn same_open_file_identity(expected: &std::fs::Metadata, opened: &std::fs::Metadata) -> bool {
+fn same_open_file_identity(
+    expected: &std::fs::Metadata,
+    opened: &std::fs::Metadata,
+    expected_path: &Path,
+    opened_file: &std::fs::File,
+) -> bool {
+    #[cfg(not(windows))]
+    let _ = (expected_path, opened_file);
+
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
@@ -264,16 +272,47 @@ fn same_open_file_identity(expected: &std::fs::Metadata, opened: &std::fs::Metad
 
     #[cfg(windows)]
     {
-        // Windows MetadataExt does not yet expose stable file identity on the
-        // crate's MSRV. The normalized path obtained from the opened handle is
-        // compared with the canonical authorization path by the caller.
+        use std::os::windows::io::AsRawHandle;
+
+        #[repr(C)]
+        #[derive(Default)]
+        struct ByHandleFileInformation {
+            fields: [u32; 13],
+        }
+
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn GetFileInformationByHandle(
+                file: *mut std::ffi::c_void,
+                information: *mut ByHandleFileInformation,
+            ) -> i32;
+        }
+
+        fn identity(file: &std::fs::File) -> Option<(u32, u32, u32)> {
+            let mut information = ByHandleFileInformation::default();
+            let succeeded = unsafe {
+                GetFileInformationByHandle(file.as_raw_handle().cast(), &mut information)
+            };
+            (succeeded != 0).then(|| {
+                (
+                    information.fields[7],
+                    information.fields[11],
+                    information.fields[12],
+                )
+            })
+        }
+
+        let expected_file = match std::fs::File::open(expected_path) {
+            Ok(file) => file,
+            Err(_) => return false,
+        };
         let _ = (expected, opened);
-        true
+        identity(&expected_file).is_some_and(|expected| identity(opened_file) == Some(expected))
     }
 
     #[cfg(not(any(unix, windows)))]
     {
-        let _ = (expected, opened);
+        let _ = (expected, opened, expected_path, opened_file);
         false
     }
 }
