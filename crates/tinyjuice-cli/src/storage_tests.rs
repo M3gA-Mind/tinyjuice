@@ -391,6 +391,34 @@ fn configuration_does_not_rewrite_cache_when_ttl_is_unchanged() {
 }
 
 #[test]
+fn stale_capped_store_does_not_write_after_configuration_changes() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let blobs = open_file_blobs(root).unwrap();
+    let old_ttl = Some(Duration::from_secs(3_600));
+    let new_ttl = Some(Duration::from_secs(7_200));
+    configure(root, old_ttl, None).unwrap();
+    let stale = CappedCcrStore {
+        store: BlobCcrStore::new(Arc::clone(&blobs), old_ttl).unwrap(),
+        blobs: Arc::clone(&blobs),
+        lock_path: process_lock_path(root),
+        ttl: old_ttl,
+        max_bytes: None,
+    };
+    configure(root, new_ttl, None).unwrap();
+
+    let result = stale.put("stale process must not write with an old TTL");
+
+    assert!(!result.retained());
+    assert!(
+        run_blob(async move { blobs.list(&format!("{CCR_PREFIX}/")).await })
+            .unwrap()
+            .is_empty(),
+        "a store configured with a superseded TTL must not publish a body"
+    );
+}
+
+#[test]
 fn removing_legacy_entries_reports_inspection_and_removal_errors() {
     let dir = tempfile::tempdir().unwrap();
     let token = "0123456789abcdef0123456789abcdef";
