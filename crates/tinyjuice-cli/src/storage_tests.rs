@@ -666,17 +666,17 @@ fn stale_import_intent_does_not_hide_a_newer_body_write() {
         max_bytes: None,
     };
     assert!(!reoffloaded.put(content).retained());
-    let backend_time = backend_written_at(
-        Arc::clone(&inner),
-        &format!("{CCR_PREFIX}/{token}"),
-    )
-    .unwrap()
-    .unwrap();
+    let backend_time = backend_written_at(Arc::clone(&inner), &format!("{CCR_PREFIX}/{token}"))
+        .unwrap()
+        .unwrap();
     assert!(backend_time > unix_epoch_ms(old_time));
 
     import_legacy_files(dir.path(), &flaky, None).unwrap();
 
-    assert_eq!(read_semantic_time(inner, &token).unwrap(), Some(backend_time));
+    assert_eq!(
+        read_semantic_time(inner, &token).unwrap(),
+        Some(backend_time)
+    );
 }
 
 #[test]

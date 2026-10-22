@@ -419,6 +419,15 @@ struct CappedCcrStore {
 
 impl CcrStore for CappedCcrStore {
     fn put(&self, content: &str) -> CcrPutResult {
+        let token = tinyjuice::cache::short_hash(content);
+        if let Err(error) = delete_import_intent(Arc::clone(&self.blobs), &token) {
+            log::debug!(
+                "[tinyjuice_cli] stale CCR import intent cleanup failed before write: {error}"
+            );
+            // Do not publish a newer body while stale import chronology could
+            // still override its backend write time after an interrupted write.
+            return CcrPutResult::new(token, false);
+        }
         let result = self.store.put(content);
         if result.retained() {
             if let Err(error) = write_semantic_time(
