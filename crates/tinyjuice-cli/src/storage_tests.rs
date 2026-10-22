@@ -109,7 +109,7 @@ impl BlobStore for SynchronizeConcurrentPuts {
     ) -> StorageResult<BlobMeta> {
         let metadata = self.inner.put(key, bytes, content_type).await?;
         if key.starts_with(&format!("{CCR_PREFIX}/")) {
-            let _ = tokio::time::timeout(Duration::from_millis(200), self.body_writes.wait()).await;
+            let _ = tokio::time::timeout(Duration::from_millis(500), self.body_writes.wait()).await;
         }
         Ok(metadata)
     }
@@ -146,7 +146,7 @@ impl BlobStore for SynchronizeConcurrentPuts {
     ) -> StorageResult<BlobListPage> {
         let page = self.inner.list_page(prefix, after, limit).await?;
         if prefix == format!("{CCR_PREFIX}/") {
-            let _ = tokio::time::timeout(Duration::from_millis(200), self.prune_reads.wait()).await;
+            let _ = tokio::time::timeout(Duration::from_millis(500), self.prune_reads.wait()).await;
         }
         Ok(page)
     }
