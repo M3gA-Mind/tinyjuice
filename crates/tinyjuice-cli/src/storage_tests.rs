@@ -635,12 +635,13 @@ fn malformed_timestamp_cleanup_failure_aborts_pruning() {
             .put(content)
             .retained()
     );
+    let token_for_sidecar = token.clone();
     run_blob({
         let inner = Arc::clone(&inner);
         async move {
             inner
                 .put(
-                    &format!("{CCR_METADATA_PREFIX}{token}"),
+                    &format!("{CCR_METADATA_PREFIX}{token_for_sidecar}"),
                     b"not-a-number".to_vec(),
                     None,
                 )
