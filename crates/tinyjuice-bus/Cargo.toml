@@ -19,7 +19,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Shared REPL error vocabulary; no execution dependencies.
 thiserror = "2"
-tinystoragedrivers-types = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "c1da1bf19bac8df675d36d48a7592e59ee7ff81c" }
+tinystoragedrivers-types = { version = "2.1.0", git = "https://github.com/senamakel/tinystoragedrivers", rev = "6bc73c82da12d0f6035f8d85b27293d197dcb312" }
 
 [features]
 default = []
