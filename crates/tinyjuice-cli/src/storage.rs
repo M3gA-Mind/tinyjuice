@@ -263,6 +263,15 @@ fn import_legacy_files(
         }
         let content = match std::fs::read_to_string(entry.path()) {
             Ok(content) => content,
+            Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {
+                log::warn!(
+                    "[tinyjuice_cli] discarding non-UTF-8 legacy CCR entry {token}: {error}"
+                );
+                let size = remove_legacy_entry(&entry.path(), &token, "non-UTF-8")?;
+                removed_legacy = removed_legacy.saturating_add(1);
+                removed_legacy_bytes = removed_legacy_bytes.saturating_add(size);
+                continue;
+            }
             Err(error) => {
                 log::warn!("[tinyjuice_cli] skipping unreadable legacy CCR entry {token}: {error}");
                 continue;
