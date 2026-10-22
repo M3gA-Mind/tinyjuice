@@ -650,10 +650,7 @@ async fn delete_blob_and_metadata_async(
     blobs: Arc<dyn BlobStore>,
     key: &str,
 ) -> Result<(), String> {
-    blobs
-        .delete(key)
-        .await
-        .map_err(|error| error.to_string())?;
+    blobs.delete(key).await.map_err(|error| error.to_string())?;
     let Some(token) = key.strip_prefix(&format!("{CCR_PREFIX}/")) else {
         return Ok(());
     };
@@ -702,10 +699,7 @@ fn delete_import_intent(blobs: Arc<dyn BlobStore>, token: &str) -> Result<(), St
     run_blob(async move { blobs.delete(&key).await }).map(|_| ())
 }
 
-async fn delete_import_intent_async(
-    blobs: Arc<dyn BlobStore>,
-    token: &str,
-) -> Result<(), String> {
+async fn delete_import_intent_async(blobs: Arc<dyn BlobStore>, token: &str) -> Result<(), String> {
     let key = format!("{CCR_IMPORT_PREFIX}{token}");
     blobs
         .delete(&key)
@@ -781,24 +775,16 @@ async fn read_timestamp_async(
     token: &str,
 ) -> Result<Option<u64>, String> {
     let key = format!("{prefix}{token}");
-    let Some(blob) = blobs
-        .get(&key)
-        .await
-        .map_err(|error| error.to_string())?
-    else {
+    let Some(blob) = blobs.get(&key).await.map_err(|error| error.to_string())? else {
         return Ok(None);
     };
     match parse_timestamp(&blob.bytes) {
         Ok(timestamp) => Ok(Some(timestamp)),
         Err(error) => {
             log::warn!("[tinyjuice_cli] discarding malformed CCR timestamp sidecar {key}: {error}");
-            blobs
-                .delete(&key)
-                .await
-                .map(|_| ())
-                .map_err(|error| {
-                    format!("cannot remove malformed CCR timestamp sidecar: {error}")
-                })?;
+            blobs.delete(&key).await.map(|_| ()).map_err(|error| {
+                format!("cannot remove malformed CCR timestamp sidecar: {error}")
+            })?;
             Ok(None)
         }
     }

@@ -431,7 +431,11 @@ fn concurrent_capped_writes_do_not_prune_each_other_into_an_empty_cache() {
     assert!(second_put.retained());
     let entries = run_blob(async move { inner.list(&format!("{CCR_PREFIX}/")).await }).unwrap();
 
-    assert_eq!(entries.len(), 1, "a capped concurrent write must retain one blob");
+    assert_eq!(
+        entries.len(),
+        1,
+        "a capped concurrent write must retain one blob"
+    );
 }
 
 #[test]
