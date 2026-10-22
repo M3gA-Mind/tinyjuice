@@ -102,11 +102,11 @@ impl Tool for RetrieveToolOutputTool {
 
 fn parse_range(range: &Value) -> Result<RetrieveRange, ()> {
     let start = match range.get("start").and_then(Value::as_u64) {
-        Some(value) => usize::try_from(value).map_err(|_| ())?,
+        Some(value) => usize_from_range_endpoint(value, usize::MAX as u64)?,
         None => 0,
     };
     let end = match range.get("end").and_then(Value::as_u64) {
-        Some(value) => usize::try_from(value).map_err(|_| ())?,
+        Some(value) => usize_from_range_endpoint(value, usize::MAX as u64)?,
         None => usize::MAX,
     };
     let unit = match range.get("unit").and_then(Value::as_str) {
@@ -114,6 +114,13 @@ fn parse_range(range: &Value) -> Result<RetrieveRange, ()> {
         _ => RangeUnit::Lines,
     };
     Ok(RetrieveRange { start, end, unit })
+}
+
+fn usize_from_range_endpoint(value: u64, maximum: u64) -> Result<usize, ()> {
+    if value > maximum {
+        return Err(());
+    }
+    usize::try_from(value).map_err(|_| ())
 }
 
 fn miss_message(token: &str) -> String {
