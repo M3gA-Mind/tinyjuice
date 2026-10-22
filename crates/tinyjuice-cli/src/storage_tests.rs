@@ -80,6 +80,20 @@ fn collection_reports_bytes_removed_by_the_budget() {
 }
 
 #[test]
+fn collection_removes_and_reports_corrupt_legacy_entries() {
+    let dir = tempfile::tempdir().unwrap();
+    let token = "0123456789abcdef0123456789abcdef";
+    let path = dir.path().join(token);
+    let corrupt_content = "content does not match its token";
+    std::fs::write(&path, corrupt_content).unwrap();
+
+    let result = collect(dir.path(), None, Some(0)).unwrap();
+
+    assert_eq!(result, (1, corrupt_content.len() as u64, 0, 0));
+    assert!(!path.exists(), "garbage collection removes the corrupt file");
+}
+
+#[test]
 fn configure_and_inventory_report_invalid_storage_paths() {
     let dir = tempfile::tempdir().unwrap();
     let missing = dir.path().join("missing");
@@ -116,7 +130,10 @@ fn legacy_import_skips_corrupt_entries_and_continues_importing_valid_files() {
     import_legacy_files(dir.path(), &blobs, None).unwrap();
 
     assert!(!valid_path.exists(), "the valid legacy file is imported");
-    assert!(mismatch_path.exists(), "the mismatched source is preserved");
+    assert!(
+        !mismatch_path.exists(),
+        "the corrupt source is discarded rather than retried forever"
+    );
     assert!(
         unreadable_path.exists(),
         "the unreadable source is preserved"
