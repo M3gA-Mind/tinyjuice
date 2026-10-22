@@ -20,6 +20,7 @@ const DEFAULT_CLI_CCR_TTL_SECS: u64 = 7 * 24 * 60 * 60;
 const CCR_METADATA_PREFIX: &str = "tinyjuice/ccr-metadata/";
 const CCR_METADATA_CONTENT_TYPE: &str = "application/vnd.tinyjuice.ccr-metadata";
 const CCR_IMPORT_PREFIX: &str = "tinyjuice/ccr-import-intent/";
+const CCR_TTL_CONFIGURATION_KEY: &str = "tinyjuice/ccr-config/applied-ttl";
 
 #[allow(dead_code)] // The reducer binary uses inventory; the hook binary shares this module.
 pub(crate) struct Inventory {
@@ -63,7 +64,7 @@ fn configure_with_report(
     let _lock = acquire_process_lock(&process_lock_path(root))?;
     let discarded_legacy = import_legacy_files(root, &blobs, ttl)?;
     let store = BlobCcrStore::new(Arc::clone(&blobs), ttl).map_err(|error| error.to_string())?;
-    reapply_existing_blob_ttl(&blobs, ttl)?;
+    reapply_existing_blob_ttl_if_changed(&blobs, ttl)?;
     let capped = CappedCcrStore {
         store,
         blobs: Arc::clone(&blobs),
@@ -198,6 +199,40 @@ fn prune(
     })
 }
 
+fn reapply_existing_blob_ttl_if_changed(
+    blobs: &Arc<dyn BlobStore>,
+    ttl: Option<Duration>,
+) -> Result<(), String> {
+    let signature = ttl_signature(ttl);
+    let key = CCR_TTL_CONFIGURATION_KEY.to_owned();
+    let existing = run_blob({
+        let blobs = Arc::clone(blobs);
+        let key = key.clone();
+        async move { blobs.get(&key).await }
+    })?;
+    if existing.is_some_and(|blob| blob.bytes == signature.as_bytes()) {
+        return Ok(());
+    }
+
+    reapply_existing_blob_ttl(blobs, ttl)?;
+    run_blob({
+        let blobs = Arc::clone(blobs);
+        async move {
+            blobs
+                .put(&key, signature.into_bytes(), None)
+                .await
+                .map(|_| ())
+        }
+    })
+}
+
+fn ttl_signature(ttl: Option<Duration>) -> String {
+    match ttl {
+        Some(ttl) => format!("{}.{:09}", ttl.as_secs(), ttl.subsec_nanos()),
+        None => "disabled".to_owned(),
+    }
+}
+
 fn reapply_existing_blob_ttl(
     blobs: &Arc<dyn BlobStore>,
     ttl: Option<Duration>,
@@ -222,13 +257,29 @@ fn reapply_existing_blob_ttl(
                 else {
                     continue;
                 };
-                let written_at_ms = semantic_times.get(token).copied().or(entry.written_at_ms);
+                let written_at_ms = semantic_times
+                    .get(token)
+                    .copied()
+                    .or(entry.written_at_ms)
+                    .unwrap_or_else(|| unix_epoch_ms(now));
+                if !semantic_times.contains_key(token) {
+                    refresh_blob_expiry_async(
+                        Arc::clone(&blobs),
+                        &format!("{CCR_METADATA_PREFIX}{token}"),
+                        written_at_ms.to_string().into_bytes(),
+                        Some(CCR_METADATA_CONTENT_TYPE),
+                        Some(written_at_ms),
+                        ttl,
+                        now,
+                    )
+                    .await?;
+                }
                 refresh_blob_expiry_async(
                     Arc::clone(&blobs),
                     &entry.meta.key,
                     body.bytes,
                     body.meta.content_type.as_deref(),
-                    written_at_ms,
+                    Some(written_at_ms),
                     ttl,
                     now,
                 )
