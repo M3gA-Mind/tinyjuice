@@ -505,6 +505,7 @@ fn capped_store_delegates_byte_ranges_to_the_durable_store() {
     let store = CappedCcrStore {
         store: BlobCcrStore::new(Arc::clone(&blobs), None).unwrap(),
         blobs,
+        lock_path: process_lock_path(dir.path()),
         ttl: None,
         max_bytes: None,
     };
@@ -641,6 +642,7 @@ fn durable_cli_writes_enforce_the_configured_byte_budget() {
     let store = CappedCcrStore {
         store: BlobCcrStore::new(Arc::clone(&blobs), None).unwrap(),
         blobs: Arc::clone(&blobs),
+        lock_path: process_lock_path(dir.path()),
         ttl: None,
         max_bytes: Some(9),
     };
@@ -766,6 +768,7 @@ fn failed_timestamp_refresh_does_not_leave_an_old_age_for_gc() {
     let refreshed = CappedCcrStore {
         store: BlobCcrStore::new(Arc::clone(&failing), None).unwrap(),
         blobs: failing,
+        lock_path: process_lock_path(dir.path()),
         ttl: None,
         max_bytes: None,
     };
@@ -808,6 +811,7 @@ fn failed_stale_timestamp_cleanup_does_not_advertise_or_prune_the_new_body() {
     let capped = CappedCcrStore {
         store: BlobCcrStore::new(Arc::clone(&failing), None).unwrap(),
         blobs: failing,
+        lock_path: process_lock_path(dir.path()),
         ttl: Some(Duration::from_secs(3_600)),
         max_bytes: None,
     };
@@ -849,6 +853,7 @@ fn stale_import_intent_does_not_hide_a_newer_body_write() {
     let reoffloaded = CappedCcrStore {
         store: BlobCcrStore::new(Arc::clone(&flaky), None).unwrap(),
         blobs: flaky.clone(),
+        lock_path: process_lock_path(dir.path()),
         ttl: None,
         max_bytes: None,
     };
@@ -873,6 +878,7 @@ fn capped_store_put_works_inside_a_current_thread_runtime() {
     let capped = CappedCcrStore {
         store: BlobCcrStore::new(Arc::clone(&blobs), None).unwrap(),
         blobs,
+        lock_path: process_lock_path(dir.path()),
         ttl: Some(Duration::from_secs(600)),
         max_bytes: Some(1024),
     };
