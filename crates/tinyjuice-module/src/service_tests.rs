@@ -447,6 +447,12 @@ async fn import_savings_at_uses_only_its_request_scoped_storage_address() {
     .unwrap();
     assert!(imported);
 
+    assert_eq!(
+        savings.stats(Some(&module)).await.total.events,
+        0,
+        "request-scoped import state must not become ordinary module state"
+    );
+
     let ordinary = backend.for_scope(&Scope::new("ordinary").unwrap()).unwrap();
     let stored = ordinary
         .documents()
