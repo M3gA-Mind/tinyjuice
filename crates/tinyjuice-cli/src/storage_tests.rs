@@ -7,19 +7,13 @@ use tinystoragedrivers_types::{
 };
 
 #[derive(Debug)]
-struct FailMetadataWrite {
-    inner: Arc<dyn BlobStore>,
-    faults: FaultPlan,
-}
-
-#[derive(Debug)]
-struct FailMetadataRead {
+struct FailMetadataOperations {
     inner: Arc<dyn BlobStore>,
     faults: FaultPlan,
 }
 
 #[async_trait::async_trait]
-impl BlobStore for FailMetadataWrite {
+impl BlobStore for FailMetadataOperations {
     fn capabilities(&self) -> Capabilities {
         self.inner.capabilities()
     }
@@ -37,59 +31,6 @@ impl BlobStore for FailMetadataWrite {
         if key.starts_with(CCR_METADATA_PREFIX) {
             self.faults.check("metadata_put")?;
         }
-        self.inner.put(key, bytes, content_type).await
-    }
-
-    async fn get(&self, key: &str) -> StorageResult<Option<Blob>> {
-        self.inner.get(key).await
-    }
-
-    async fn get_range(
-        &self,
-        key: &str,
-        range: std::ops::Range<u64>,
-    ) -> StorageResult<Option<Vec<u8>>> {
-        self.inner.get_range(key, range).await
-    }
-
-    async fn head(&self, key: &str) -> StorageResult<Option<BlobMeta>> {
-        self.inner.head(key).await
-    }
-
-    async fn delete(&self, key: &str) -> StorageResult<bool> {
-        self.inner.delete(key).await
-    }
-
-    async fn list(&self, prefix: &str) -> StorageResult<Vec<BlobMeta>> {
-        self.inner.list(prefix).await
-    }
-
-    async fn list_page(
-        &self,
-        prefix: &str,
-        after: Option<&str>,
-        limit: usize,
-    ) -> StorageResult<BlobListPage> {
-        self.inner.list_page(prefix, after, limit).await
-    }
-}
-
-#[async_trait::async_trait]
-impl BlobStore for FailMetadataRead {
-    fn capabilities(&self) -> Capabilities {
-        self.inner.capabilities()
-    }
-
-    fn max_key_len(&self) -> usize {
-        self.inner.max_key_len()
-    }
-
-    async fn put(
-        &self,
-        key: &str,
-        bytes: Vec<u8>,
-        content_type: Option<&str>,
-    ) -> StorageResult<BlobMeta> {
         self.inner.put(key, bytes, content_type).await
     }
 
@@ -463,7 +404,7 @@ fn timestamp_backend_read_errors_still_abort_pruning() {
     .unwrap();
     let faults = FaultPlan::new();
     faults.fail_operation_nth("metadata_get", 1, ErrorKind::Backend);
-    let failing: Arc<dyn BlobStore> = Arc::new(FailMetadataRead { inner, faults });
+    let failing: Arc<dyn BlobStore> = Arc::new(FailMetadataOperations { inner, faults });
 
     let error = prune(&failing, None, None, None).unwrap_err();
 
@@ -615,7 +556,7 @@ fn failed_timestamp_refresh_does_not_leave_an_old_age_for_gc() {
 
     let faults = FaultPlan::new();
     faults.fail_operation_nth("metadata_put", 1, ErrorKind::Backend);
-    let failing: Arc<dyn BlobStore> = Arc::new(FailMetadataWrite {
+    let failing: Arc<dyn BlobStore> = Arc::new(FailMetadataOperations {
         inner: Arc::clone(&inner),
         faults,
     });
@@ -713,7 +654,7 @@ fn retry_after_timestamp_write_failure_preserves_the_source_file_age() {
     let inner = open_file_blobs(dir.path()).unwrap();
     let faults = FaultPlan::new();
     faults.fail_operation_nth("metadata_put", 1, ErrorKind::Backend);
-    let failing: Arc<dyn BlobStore> = Arc::new(FailMetadataWrite {
+    let failing: Arc<dyn BlobStore> = Arc::new(FailMetadataOperations {
         inner: Arc::clone(&inner),
         faults: faults.clone(),
     });
