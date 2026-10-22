@@ -239,8 +239,8 @@ fn import_legacy_files(
     blobs: &Arc<dyn BlobStore>,
     ttl: Option<Duration>,
 ) -> Result<(usize, u64), String> {
-    let mut discarded_corrupt = 0_usize;
-    let mut discarded_bytes = 0_u64;
+    let mut removed_legacy = 0_usize;
+    let mut removed_legacy_bytes = 0_u64;
     let entries = std::fs::read_dir(root).map_err(|error| {
         format!(
             "failed to inspect legacy CCR directory {}: {error}",
@@ -279,8 +279,8 @@ fn import_legacy_files(
             std::fs::remove_file(entry.path()).map_err(|error| {
                 format!("cannot remove corrupt legacy CCR entry {token}: {error}")
             })?;
-            discarded_corrupt = discarded_corrupt.saturating_add(1);
-            discarded_bytes = discarded_bytes.saturating_add(size);
+            removed_legacy = removed_legacy.saturating_add(1);
+            removed_legacy_bytes = removed_legacy_bytes.saturating_add(size);
             continue;
         }
         let modified = entry
@@ -294,9 +294,17 @@ fn import_legacy_files(
             Some(ttl) => {
                 let remaining = remaining_ttl(modified, SystemTime::now(), ttl);
                 if remaining.is_none() {
+                    let size = entry
+                        .metadata()
+                        .map_err(|error| {
+                            format!("cannot inspect expired legacy CCR entry {token}: {error}")
+                        })?
+                        .len();
                     std::fs::remove_file(entry.path()).map_err(|error| {
                         format!("cannot remove expired legacy CCR entry {token}: {error}")
                     })?;
+                    removed_legacy = removed_legacy.saturating_add(1);
+                    removed_legacy_bytes = removed_legacy_bytes.saturating_add(size);
                     continue;
                 }
                 remaining
@@ -360,7 +368,7 @@ fn import_legacy_files(
         std::fs::remove_file(entry.path())
             .map_err(|error| format!("cannot remove imported CCR entry {token}: {error}"))?;
     }
-    Ok((discarded_corrupt, discarded_bytes))
+    Ok((removed_legacy, removed_legacy_bytes))
 }
 
 fn remaining_ttl(modified: SystemTime, now: SystemTime, ttl: Duration) -> Option<Duration> {

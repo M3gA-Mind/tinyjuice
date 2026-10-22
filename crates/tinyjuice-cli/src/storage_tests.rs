@@ -97,6 +97,23 @@ fn collection_removes_and_reports_corrupt_legacy_entries() {
 }
 
 #[test]
+fn collection_reports_expired_legacy_entries() {
+    let dir = tempfile::tempdir().unwrap();
+    let content = "valid but expired legacy entry";
+    let token = tinyjuice::cache::short_hash(content);
+    let path = dir.path().join(token);
+    std::fs::write(&path, content).unwrap();
+
+    let result = collect(dir.path(), Some(Duration::ZERO), None).unwrap();
+
+    assert_eq!(result, (1, content.len() as u64, 0, 0));
+    assert!(
+        !path.exists(),
+        "garbage collection removes expired legacy files"
+    );
+}
+
+#[test]
 fn configure_and_inventory_report_invalid_storage_paths() {
     let dir = tempfile::tempdir().unwrap();
     let missing = dir.path().join("missing");
