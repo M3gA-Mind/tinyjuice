@@ -1491,7 +1491,6 @@ dependencies = [
  "tree-sitter-typescript",
  "unicode-segmentation",
  "unicode-width",
- "uuid",
 ]
 
 [[package]]
@@ -1536,6 +1535,21 @@ dependencies = [
  "tinystoragedrivers-testkit",
  "tinystoragedrivers-types",
  "tokio",
+]
+
+[[package]]
+name = "tinyjuice-host"
+version = "0.11.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "log",
+ "serde_json",
+ "tempfile",
+ "tinyjuice-bus",
+ "tinytools",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
