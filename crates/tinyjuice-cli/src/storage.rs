@@ -378,9 +378,7 @@ fn remove_imported_legacy_entry_with(
     match remove_file(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(format!(
-            "cannot remove imported CCR entry {token}: {error}"
-        )),
+        Err(error) => Err(format!("cannot remove imported CCR entry {token}: {error}")),
     }
 }
 
