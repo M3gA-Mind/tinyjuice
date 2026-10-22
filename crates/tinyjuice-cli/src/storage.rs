@@ -368,7 +368,7 @@ fn import_legacy_files(
 }
 
 fn remove_legacy_entry(path: &Path, token: &str, reason: &str) -> Result<Option<u64>, String> {
-    remove_legacy_entry_with(path, token, reason, std::fs::remove_file)
+    remove_legacy_entry_with(path, token, reason, |path| std::fs::remove_file(path))
 }
 
 fn remove_legacy_entry_with(
