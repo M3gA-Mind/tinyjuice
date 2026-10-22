@@ -84,6 +84,74 @@ impl BlobStore for FailMetadataOperations {
     }
 }
 
+#[derive(Debug)]
+struct SynchronizeConcurrentPuts {
+    inner: Arc<dyn BlobStore>,
+    body_writes: Arc<tokio::sync::Barrier>,
+    prune_reads: Arc<tokio::sync::Barrier>,
+}
+
+#[async_trait::async_trait]
+impl BlobStore for SynchronizeConcurrentPuts {
+    fn capabilities(&self) -> Capabilities {
+        self.inner.capabilities()
+    }
+
+    fn max_key_len(&self) -> usize {
+        self.inner.max_key_len()
+    }
+
+    async fn put(
+        &self,
+        key: &str,
+        bytes: Vec<u8>,
+        content_type: Option<&str>,
+    ) -> StorageResult<BlobMeta> {
+        let metadata = self.inner.put(key, bytes, content_type).await?;
+        if key.starts_with(&format!("{CCR_PREFIX}/")) {
+            let _ = tokio::time::timeout(Duration::from_millis(200), self.body_writes.wait()).await;
+        }
+        Ok(metadata)
+    }
+
+    async fn get(&self, key: &str) -> StorageResult<Option<Blob>> {
+        self.inner.get(key).await
+    }
+
+    async fn get_range(
+        &self,
+        key: &str,
+        range: std::ops::Range<u64>,
+    ) -> StorageResult<Option<Vec<u8>>> {
+        self.inner.get_range(key, range).await
+    }
+
+    async fn head(&self, key: &str) -> StorageResult<Option<BlobMeta>> {
+        self.inner.head(key).await
+    }
+
+    async fn delete(&self, key: &str) -> StorageResult<bool> {
+        self.inner.delete(key).await
+    }
+
+    async fn list(&self, prefix: &str) -> StorageResult<Vec<BlobMeta>> {
+        self.inner.list(prefix).await
+    }
+
+    async fn list_page(
+        &self,
+        prefix: &str,
+        after: Option<&str>,
+        limit: usize,
+    ) -> StorageResult<BlobListPage> {
+        let page = self.inner.list_page(prefix, after, limit).await?;
+        if prefix == format!("{CCR_PREFIX}/") {
+            let _ = tokio::time::timeout(Duration::from_millis(200), self.prune_reads.wait()).await;
+        }
+        Ok(page)
+    }
+}
+
 #[test]
 fn collection_reports_bytes_removed_by_the_budget() {
     let dir = tempfile::tempdir().unwrap();
@@ -318,6 +386,52 @@ fn inventory_counts_ignored_entries_and_returns_imported_blobs() {
             .as_deref(),
         Some(content)
     );
+}
+
+#[test]
+fn inventory_does_not_count_backend_storage_after_a_blob_write() {
+    let dir = tempfile::tempdir().unwrap();
+    let blobs = open_file_blobs(dir.path()).unwrap();
+    let store = BlobCcrStore::new(blobs, None).unwrap();
+    assert!(store.put("inventory backend entry").retained());
+
+    let first = inventory(dir.path(), None).unwrap();
+    let second = inventory(dir.path(), None).unwrap();
+
+    assert_eq!(first.ignored_entries, second.ignored_entries);
+}
+
+#[test]
+fn concurrent_capped_writes_do_not_prune_each_other_into_an_empty_cache() {
+    let dir = tempfile::tempdir().unwrap();
+    let inner = open_file_blobs(dir.path()).unwrap();
+    let body_writes = Arc::new(tokio::sync::Barrier::new(2));
+    let prune_reads = Arc::new(tokio::sync::Barrier::new(2));
+    let blobs: Arc<dyn BlobStore> = Arc::new(SynchronizeConcurrentPuts {
+        inner: Arc::clone(&inner),
+        body_writes,
+        prune_reads,
+    });
+    let lock_path = dir.path().join("scopes/tinyjuice-cli/.tinyjuice-ccr.lock");
+    let make_store = || CappedCcrStore {
+        store: BlobCcrStore::new(Arc::clone(&blobs), None).unwrap(),
+        blobs: Arc::clone(&blobs),
+        lock_path: lock_path.clone(),
+        ttl: None,
+        max_bytes: Some(5),
+    };
+    let first = make_store();
+    let second = make_store();
+    let first_put = std::thread::spawn(move || first.put("first"));
+    let second_put = std::thread::spawn(move || second.put("other"));
+
+    let first_put = first_put.join().unwrap();
+    let second_put = second_put.join().unwrap();
+    assert!(first_put.retained());
+    assert!(second_put.retained());
+    let entries = run_blob(async move { inner.list(&format!("{CCR_PREFIX}/")).await }).unwrap();
+
+    assert_eq!(entries.len(), 1, "a capped concurrent write must retain one blob");
 }
 
 #[test]
