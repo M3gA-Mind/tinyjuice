@@ -119,6 +119,39 @@ fn host_cli_help_templates_and_gc_are_usable() {
 }
 
 #[test]
+fn reduce_json_help_and_argument_errors_do_not_open_cache() {
+    let dir = tempfile::tempdir().unwrap();
+    let cache_path = dir.path().join("not-a-directory");
+    std::fs::write(&cache_path, "not a directory").unwrap();
+
+    for (args, expected_success, expected_output) in [
+        (&["reduce-json", "--help"][..], true, "Usage:"),
+        (
+            &["reduce-json", "--unknown"][..],
+            false,
+            "unknown reduce-json flag",
+        ),
+    ] {
+        let out = Command::new(env!("CARGO_BIN_EXE_tinyjuice"))
+            .args(args)
+            .env("TINYJUICE_CCR_DIR", &cache_path)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .unwrap();
+        assert_eq!(out.status.success(), expected_success, "{args:?}: {out:?}");
+        let output = format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert!(output.contains(expected_output), "{args:?}: {output}");
+        assert!(!output.contains("not a directory"), "{args:?}: {output}");
+    }
+}
+
+#[test]
 fn host_cli_install_update_and_uninstall_preserve_settings() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("settings.json");
