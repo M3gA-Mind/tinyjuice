@@ -151,21 +151,30 @@ pub fn read_tool_result_artifact(dir: &Path, raw: &str, max_bytes: u64) -> Resul
     }
     let file = std::fs::File::open(&canonical).map_err(not_found)?;
     let opened_metadata = file.metadata().map_err(not_found)?;
-    if !same_open_file_identity(&metadata, &opened_metadata) {
-        return Err(artifact_refused(
-            "that artifact changed while its access was being checked",
-        ));
-    }
-    if opened_metadata.len() > max_bytes {
-        return Err(artifact_refused(&format!(
-            "that artifact is {} bytes, over the {max_bytes}-byte limit",
-            opened_metadata.len()
-        )));
-    }
+    validate_opened_artifact(&metadata, &opened_metadata, max_bytes)?;
     let bytes = read_bounded_artifact_bytes(file, max_bytes).map_err(|_| {
         artifact_refused(&format!("that artifact exceeds the {max_bytes}-byte limit"))
     })?;
     Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+fn validate_opened_artifact(
+    expected: &std::fs::Metadata,
+    opened: &std::fs::Metadata,
+    max_bytes: u64,
+) -> Result<(), String> {
+    if !same_open_file_identity(expected, opened) {
+        return Err(artifact_refused(
+            "that artifact changed while its access was being checked",
+        ));
+    }
+    if opened.len() > max_bytes {
+        return Err(artifact_refused(&format!(
+            "that artifact is {} bytes, over the {max_bytes}-byte limit",
+            opened.len()
+        )));
+    }
+    Ok(())
 }
 
 fn same_open_file_identity(expected: &std::fs::Metadata, opened: &std::fs::Metadata) -> bool {

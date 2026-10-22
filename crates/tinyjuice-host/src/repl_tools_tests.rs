@@ -17,10 +17,9 @@ fn artifact_opened_after_path_replacement_is_rejected_by_file_identity() {
         .unwrap()
         .metadata()
         .unwrap();
-    assert!(!same_open_file_identity(
-        &expected_metadata,
-        &opened_metadata
-    ));
+    let error = validate_opened_artifact(&expected_metadata, &opened_metadata, u64::MAX)
+        .expect_err("replacement file identity must be refused");
+    assert!(error.contains("that artifact changed while its access was being checked"));
 }
 
 #[test]
