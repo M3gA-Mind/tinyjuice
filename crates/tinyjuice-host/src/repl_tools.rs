@@ -151,7 +151,13 @@ pub fn read_tool_result_artifact(dir: &Path, raw: &str, max_bytes: u64) -> Resul
     }
     let file = std::fs::File::open(&canonical).map_err(not_found)?;
     let opened_metadata = file.metadata().map_err(not_found)?;
-    validate_opened_artifact(&metadata, &opened_metadata, max_bytes)?;
+    validate_opened_artifact(
+        &canonical_dir,
+        &metadata,
+        &opened_metadata,
+        &file,
+        max_bytes,
+    )?;
     let bytes = read_bounded_artifact_bytes(file, max_bytes).map_err(|_| {
         artifact_refused(&format!("that artifact exceeds the {max_bytes}-byte limit"))
     })?;
@@ -159,10 +165,19 @@ pub fn read_tool_result_artifact(dir: &Path, raw: &str, max_bytes: u64) -> Resul
 }
 
 fn validate_opened_artifact(
+    canonical_dir: &Path,
     expected: &std::fs::Metadata,
     opened: &std::fs::Metadata,
+    file: &std::fs::File,
     max_bytes: u64,
 ) -> Result<(), String> {
+    let opened_path = opened_file_path(file)
+        .ok_or_else(|| artifact_refused("the opened artifact's location could not be verified"))?;
+    if !opened_path.starts_with(canonical_dir) {
+        return Err(artifact_refused(
+            "that path resolves outside the tool-results directory",
+        ));
+    }
     if !same_open_file_identity(expected, opened) {
         return Err(artifact_refused(
             "that artifact changed while its access was being checked",
@@ -175,6 +190,62 @@ fn validate_opened_artifact(
         )));
     }
     Ok(())
+}
+
+fn opened_file_path(file: &std::fs::File) -> Option<std::path::PathBuf> {
+    #[cfg(target_os = "linux")]
+    let handle_path = {
+        use std::os::fd::AsRawFd;
+        std::path::PathBuf::from(format!("/proc/self/fd/{}", file.as_raw_fd()))
+    };
+
+    #[cfg(all(unix, not(target_os = "linux")))]
+    let handle_path = {
+        use std::os::fd::AsRawFd;
+        std::path::PathBuf::from(format!("/dev/fd/{}", file.as_raw_fd()))
+    };
+
+    #[cfg(windows)]
+    let handle_path = windows_opened_file_path(file)?;
+
+    #[cfg(not(any(unix, windows)))]
+    return None;
+
+    #[cfg(any(unix, windows))]
+    std::fs::canonicalize(handle_path).ok()
+}
+
+#[cfg(windows)]
+fn windows_opened_file_path(file: &std::fs::File) -> Option<std::path::PathBuf> {
+    use std::os::windows::{ffi::OsStringExt, io::AsRawHandle};
+
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetFinalPathNameByHandleW(
+            file: *mut std::ffi::c_void,
+            file_path: *mut u16,
+            file_path_size: u32,
+            flags: u32,
+        ) -> u32;
+    }
+
+    let handle = file.as_raw_handle().cast();
+    // A zero-sized call reports the required buffer length. The API returns a
+    // normalized, absolute path for the already-open handle, including the
+    // Windows device prefix that canonicalize also uses.
+    let required = unsafe { GetFinalPathNameByHandleW(handle, std::ptr::null_mut(), 0, 0) };
+    if required == 0 {
+        return None;
+    }
+    let mut buffer = vec![0u16; required as usize + 1];
+    let written =
+        unsafe { GetFinalPathNameByHandleW(handle, buffer.as_mut_ptr(), buffer.len() as u32, 0) };
+    if written == 0 || written as usize >= buffer.len() {
+        return None;
+    }
+    Some(std::path::PathBuf::from(std::ffi::OsString::from_wide(
+        &buffer[..written as usize],
+    )))
 }
 
 fn same_open_file_identity(expected: &std::fs::Metadata, opened: &std::fs::Metadata) -> bool {

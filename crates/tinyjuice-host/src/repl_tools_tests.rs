@@ -13,13 +13,33 @@ fn artifact_opened_after_path_replacement_is_rejected_by_file_identity() {
     std::fs::write(&replacement, "outside").unwrap();
 
     let expected_metadata = std::fs::metadata(expected).unwrap();
-    let opened_metadata = std::fs::File::open(replacement)
-        .unwrap()
-        .metadata()
-        .unwrap();
-    let error = validate_opened_artifact(&expected_metadata, &opened_metadata, u64::MAX)
-        .expect_err("replacement file identity must be refused");
+    let opened_file = std::fs::File::open(&replacement).unwrap();
+    let opened_metadata = opened_file.metadata().unwrap();
+    let error = validate_opened_artifact(
+        temp.path(),
+        &expected_metadata,
+        &opened_metadata,
+        &opened_file,
+        u64::MAX,
+    )
+    .expect_err("replacement file identity must be refused");
     assert!(error.contains("that artifact changed while its access was being checked"));
+}
+
+#[test]
+fn opened_artifact_outside_tool_results_is_refused_even_when_metadata_matches() {
+    let workspace = tempfile::tempdir().unwrap();
+    let artifact_dir = workspace.path().join("artifacts/tool-results");
+    std::fs::create_dir_all(&artifact_dir).unwrap();
+    let outside = workspace.path().join("outside.txt");
+    std::fs::write(&outside, "outside").unwrap();
+
+    let expected = std::fs::metadata(&outside).unwrap();
+    let file = std::fs::File::open(&outside).unwrap();
+    let opened = file.metadata().unwrap();
+    let error = validate_opened_artifact(&artifact_dir, &expected, &opened, &file, u64::MAX)
+        .expect_err("opened handle outside the artifact directory must be refused");
+    assert!(error.contains("that path resolves outside the tool-results directory"));
 }
 
 #[test]
