@@ -64,6 +64,9 @@ impl BlobStore for FailMetadataOperations {
     }
 
     async fn delete(&self, key: &str) -> StorageResult<bool> {
+        if key.starts_with(CCR_METADATA_PREFIX) {
+            self.faults.check("semantic_metadata_delete")?;
+        }
         self.inner.delete(key).await
     }
 
@@ -666,6 +669,39 @@ fn failed_timestamp_refresh_does_not_leave_an_old_age_for_gc() {
         prune(&inner, Some(Duration::from_secs(3_600)), None, None).unwrap(),
         (0, 0, 1, content.len() as u64),
         "the physical write time must replace stale imported age when timestamp refresh fails"
+    );
+    assert_eq!(original.get(&token).as_deref(), Some(content));
+}
+
+#[test]
+fn failed_stale_timestamp_cleanup_does_not_advertise_or_prune_the_new_body() {
+    let dir = tempfile::tempdir().unwrap();
+    let content = "fresh body whose stale semantic age cannot be cleared";
+    let token = tinyjuice::cache::short_hash(content);
+    let inner = open_file_blobs(dir.path()).unwrap();
+    let original = BlobCcrStore::new(Arc::clone(&inner), None).unwrap();
+    assert!(original.put(content).retained());
+    let old_time = unix_epoch_ms(SystemTime::now() - Duration::from_secs(86_400));
+    write_semantic_time(Arc::clone(&inner), &token, old_time, None).unwrap();
+
+    let faults = FaultPlan::new();
+    faults.fail_operation_nth("metadata_put", 1, ErrorKind::Backend);
+    faults.fail_operation_nth("semantic_metadata_delete", 1, ErrorKind::Backend);
+    let failing: Arc<dyn BlobStore> = Arc::new(FailMetadataOperations {
+        inner: Arc::clone(&inner),
+        faults,
+    });
+    let capped = CappedCcrStore {
+        store: BlobCcrStore::new(Arc::clone(&failing), None).unwrap(),
+        blobs: failing,
+        ttl: Some(Duration::from_secs(3_600)),
+        max_bytes: None,
+    };
+
+    assert!(!capped.put(content).retained());
+    assert_eq!(
+        read_semantic_time(Arc::clone(&inner), &token).unwrap(),
+        Some(old_time)
     );
     assert_eq!(original.get(&token).as_deref(), Some(content));
 }
