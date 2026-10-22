@@ -311,3 +311,94 @@ async fn request_local_import_uses_the_call_storage_without_caching_it() {
         &ordinary_docs,
     ));
 }
+
+#[tokio::test]
+async fn request_local_import_works_without_an_ordinary_storage_port() {
+    let rig = rig(false).await?;
+    let callback = tinystoragedrivers_testkit::memory_backend();
+    let callback_storage = Arc::clone(
+        callback
+            .for_scope(&Scope::new("callback")?)?
+            .storage(),
+    );
+    let savings = Savings::new();
+    let legacy = SavingsAggregate {
+        total: SavingsBucket {
+            events: 2,
+            original_tokens: 20,
+            compacted_tokens: 10,
+            tokens_saved: 10,
+            cost_saved_usd: 0.1,
+        },
+        ..Default::default()
+    };
+
+    assert!(savings.import_at(None, &callback_storage, legacy).await?);
+    assert_eq!(savings.stats(Some(&rig.module)).await.total.events, 0);
+    assert_eq!(
+        callback_storage
+            .documents()
+            .get_as::<StoredSavings>(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
+            .await?
+            .unwrap()
+            .doc
+            .total
+            .events,
+        2
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn request_local_import_uses_callback_destination_when_ordinary_totals_exist() {
+    let backend = tinystoragedrivers_testkit::memory_backend();
+    let ordinary = backend.for_scope(&Scope::new("ordinary")?)?;
+    let callback = backend.for_scope(&Scope::new("callback")?)?;
+    let savings = Savings::new();
+    let ordinary_totals = SavingsAggregate {
+        total: SavingsBucket {
+            events: 1,
+            original_tokens: 9,
+            compacted_tokens: 4,
+            tokens_saved: 5,
+            cost_saved_usd: 0.1,
+        },
+        ..Default::default()
+    };
+    ordinary
+        .documents()
+        .put_as(
+            SAVINGS_COLLECTION,
+            SAVINGS_DOC_ID,
+            &StoredSavings::from_aggregate(&ordinary_totals, now_ms()),
+            Precondition::Absent,
+        )
+        .await?;
+    assert_eq!(savings.stats(None).await.total.events, 1);
+    let callback_storage = Arc::clone(callback.storage());
+    let legacy = SavingsAggregate {
+        total: SavingsBucket {
+            events: 2,
+            original_tokens: 20,
+            compacted_tokens: 10,
+            tokens_saved: 10,
+            cost_saved_usd: 0.1,
+        },
+        ..Default::default()
+    };
+
+    assert!(savings.import_at(None, &callback_storage, legacy).await?);
+    assert_eq!(
+        callback_storage
+            .documents()
+            .get_as::<StoredSavings>(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
+            .await?
+            .unwrap()
+            .doc
+            .total
+            .events,
+        2
+    );
+    assert_eq!(savings.stats(None).await.total.events, 1);
+    Ok(())
+}
