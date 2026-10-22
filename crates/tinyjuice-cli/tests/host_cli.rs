@@ -213,6 +213,32 @@ fn host_cli_reads_json_files_and_accepts_hooks_without_output() {
 }
 
 #[test]
+fn post_tool_hook_still_runs_when_persistent_cache_storage_cannot_open() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("ccr"), "not a directory").unwrap();
+    let output = (0..200)
+        .map(|index| format!("\tmodified:   src/file_{index}.rs"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let payload = serde_json::json!({
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Bash",
+        "tool_input": {"command": "git status"},
+        "tool_response": {"output": output, "exitCode": 0}
+    })
+    .to_string();
+
+    let out = invoke(dir.path(), &["codex-post-tool-use"], &payload);
+
+    assert!(out.status.success(), "cache setup must not fail the hook: {out:?}");
+    let response: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(
+        response["hookSpecificOutput"]["hookEventName"],
+        "PostToolUse"
+    );
+}
+
+#[test]
 fn host_cli_retrieves_original_from_disk_tier() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("ccr")).unwrap();
