@@ -492,11 +492,17 @@ impl CcrStore for CappedCcrStore {
                 self.ttl,
             ) {
                 log::debug!("[tinyjuice_cli] CCR timestamp write failed: {error}");
+                let mut stale_time_cleanup_failed = false;
                 if let Err(error) = delete_metadata(Arc::clone(&self.blobs), result.token()) {
                     log::debug!("[tinyjuice_cli] stale CCR timestamp cleanup failed: {error}");
+                    stale_time_cleanup_failed = true;
                 }
                 if let Err(error) = delete_import_intent(Arc::clone(&self.blobs), result.token()) {
                     log::debug!("[tinyjuice_cli] stale CCR import intent cleanup failed: {error}");
+                    stale_time_cleanup_failed = true;
+                }
+                if stale_time_cleanup_failed {
+                    return CcrPutResult::new(result.token().to_owned(), false);
                 }
             } else if let Err(error) = delete_import_intent(Arc::clone(&self.blobs), result.token())
             {
