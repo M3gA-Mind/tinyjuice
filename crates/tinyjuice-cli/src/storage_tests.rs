@@ -204,6 +204,21 @@ fn removing_legacy_entries_reports_inspection_and_removal_errors() {
 }
 
 #[test]
+fn imported_legacy_removal_tolerates_a_concurrent_not_found() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("imported");
+    std::fs::write(&path, "legacy").unwrap();
+
+    remove_imported_legacy_entry_with(&path, "0123456789abcdef0123456789abcdef", |path| {
+        std::fs::remove_file(path)?;
+        Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+    })
+    .unwrap();
+
+    assert!(!path.exists());
+}
+
+#[test]
 fn configure_and_inventory_report_invalid_storage_paths() {
     let dir = tempfile::tempdir().unwrap();
     let missing = dir.path().join("missing");

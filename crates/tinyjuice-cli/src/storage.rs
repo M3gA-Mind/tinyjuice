@@ -361,10 +361,27 @@ fn import_legacy_files(
             ));
         }
         delete_import_intent(Arc::clone(blobs), &token)?;
-        std::fs::remove_file(entry.path())
-            .map_err(|error| format!("cannot remove imported CCR entry {token}: {error}"))?;
+        remove_imported_legacy_entry(&entry.path(), &token)?;
     }
     Ok((removed_legacy, removed_legacy_bytes))
+}
+
+fn remove_imported_legacy_entry(path: &Path, token: &str) -> Result<(), String> {
+    remove_imported_legacy_entry_with(path, token, |path| std::fs::remove_file(path))
+}
+
+fn remove_imported_legacy_entry_with(
+    path: &Path,
+    token: &str,
+    remove_file: impl FnOnce(&Path) -> std::io::Result<()>,
+) -> Result<(), String> {
+    match remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!(
+            "cannot remove imported CCR entry {token}: {error}"
+        )),
+    }
 }
 
 fn remove_legacy_entry(path: &Path, token: &str, reason: &str) -> Result<Option<u64>, String> {
