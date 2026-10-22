@@ -120,6 +120,23 @@ fn collection_reports_expired_legacy_entries() {
 }
 
 #[test]
+fn collection_removes_and_reports_non_utf8_legacy_entries() {
+    let dir = tempfile::tempdir().unwrap();
+    let token = "fedcba9876543210fedcba9876543210";
+    let path = dir.path().join(token);
+    let corrupt_content = [0xff, 0xfe];
+    std::fs::write(&path, corrupt_content).unwrap();
+
+    let result = collect(dir.path(), None, Some(0)).unwrap();
+
+    assert_eq!(result, (1, corrupt_content.len() as u64, 0, 0));
+    assert!(
+        !path.exists(),
+        "garbage collection removes non-UTF-8 legacy files"
+    );
+}
+
+#[test]
 fn removing_legacy_entries_reports_inspection_and_removal_errors() {
     let dir = tempfile::tempdir().unwrap();
     let token = "0123456789abcdef0123456789abcdef";
@@ -176,8 +193,8 @@ fn legacy_import_skips_corrupt_entries_and_continues_importing_valid_files() {
         "the corrupt source is discarded rather than retried forever"
     );
     assert!(
-        unreadable_path.exists(),
-        "the unreadable source is preserved"
+        !unreadable_path.exists(),
+        "the non-UTF-8 source is discarded"
     );
     assert_eq!(
         BlobCcrStore::new(blobs, None)
