@@ -63,6 +63,7 @@ fn configure_with_report(
     let _lock = acquire_process_lock(&process_lock_path(root))?;
     let discarded_legacy = import_legacy_files(root, &blobs, ttl)?;
     let store = BlobCcrStore::new(Arc::clone(&blobs), ttl).map_err(|error| error.to_string())?;
+    reapply_existing_blob_ttl(&blobs, ttl)?;
     let capped = CappedCcrStore {
         store,
         blobs: Arc::clone(&blobs),
@@ -195,6 +196,110 @@ fn prune(
         let protect = protect.map(str::to_owned);
         async move { prune_async(blobs, ttl, max_bytes, protect.as_deref()).await }
     })
+}
+
+fn reapply_existing_blob_ttl(
+    blobs: &Arc<dyn BlobStore>,
+    ttl: Option<Duration>,
+) -> Result<(), String> {
+    run_blob({
+        let blobs = Arc::clone(blobs);
+        async move {
+            let body_prefix = format!("{CCR_PREFIX}/");
+            let bodies = list_all_prefix_async(Arc::clone(&blobs), &body_prefix).await?;
+            let semantic_times =
+                list_timestamps_async(Arc::clone(&blobs), CCR_METADATA_PREFIX).await?;
+            let now_ms = unix_epoch_ms(SystemTime::now());
+
+            for entry in bodies {
+                let Some(token) = entry.meta.key.strip_prefix(&body_prefix) else {
+                    continue;
+                };
+                let Some(body) = blobs
+                    .get(&entry.meta.key)
+                    .await
+                    .map_err(|error| error.to_string())?
+                else {
+                    continue;
+                };
+                let written_at_ms = semantic_times.get(token).copied().or(entry.written_at_ms);
+                refresh_blob_expiry_async(
+                    Arc::clone(&blobs),
+                    &entry.meta.key,
+                    body.bytes,
+                    body.meta.content_type.as_deref(),
+                    written_at_ms,
+                    ttl,
+                    now_ms,
+                )
+                .await?;
+            }
+
+            for prefix in [CCR_METADATA_PREFIX, CCR_IMPORT_PREFIX] {
+                let entries = list_all_prefix_async(Arc::clone(&blobs), prefix).await?;
+                for entry in entries {
+                    let Some(token) = entry.meta.key.strip_prefix(prefix) else {
+                        continue;
+                    };
+                    if !is_token(token) {
+                        continue;
+                    }
+                    let Some(sidecar) = blobs
+                        .get(&entry.meta.key)
+                        .await
+                        .map_err(|error| error.to_string())?
+                    else {
+                        continue;
+                    };
+                    let Ok(written_at_ms) = parse_timestamp(&sidecar.bytes) else {
+                        continue;
+                    };
+                    refresh_blob_expiry_async(
+                        Arc::clone(&blobs),
+                        &entry.meta.key,
+                        sidecar.bytes,
+                        sidecar.meta.content_type.as_deref(),
+                        Some(written_at_ms),
+                        ttl,
+                        now_ms,
+                    )
+                    .await?;
+                }
+            }
+            Ok(())
+        }
+    })
+}
+
+async fn refresh_blob_expiry_async(
+    blobs: Arc<dyn BlobStore>,
+    key: &str,
+    bytes: Vec<u8>,
+    content_type: Option<&str>,
+    written_at_ms: Option<u64>,
+    ttl: Option<Duration>,
+    now_ms: u64,
+) -> Result<(), String> {
+    match ttl {
+        None => blobs
+            .put(key, bytes, content_type)
+            .await
+            .map(|_| ())
+            .map_err(|error| error.to_string()),
+        Some(ttl) => {
+            let remaining = written_at_ms
+                .and_then(|written| remaining_ttl_from_epoch_ms(written, now_ms, ttl))
+                .unwrap_or(ttl);
+            if remaining.is_zero() {
+                return Ok(());
+            }
+            blobs
+                .put_expiring(key, bytes, content_type, remaining)
+                .await
+                .map(|_| ())
+                .map_err(|error| error.to_string())
+        }
+    }
 }
 
 async fn prune_async(
