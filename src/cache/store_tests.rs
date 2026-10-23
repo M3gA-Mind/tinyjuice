@@ -156,6 +156,13 @@ fn an_oversized_original_does_not_evict_the_retained_ones() {
 }
 
 #[test]
+fn the_entry_cap_never_evicts_the_original_just_inserted() {
+    let mut inner = Inner::default();
+    assert!(inner.insert("only".into(), "x".repeat(10), 0, 100));
+    assert!(inner.map.contains_key("only"));
+}
+
+#[test]
 fn memory_store_rejects_malformed_tokens() {
     let store = MemoryCcrStore::new(10, 10_000);
 
