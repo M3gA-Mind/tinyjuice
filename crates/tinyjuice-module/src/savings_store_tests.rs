@@ -437,3 +437,48 @@ async fn request_local_import_uses_callback_destination_when_ordinary_totals_exi
     assert_eq!(savings.stats(None).await.total.events, 1);
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_serialization_kind_read_failure_does_not_let_a_write_replace_the_totals() -> TestResult {
+    let backend = tinystoragedrivers_testkit::memory_backend();
+    let inner = Arc::clone(backend.for_scope(&Scope::new("local")?)?.documents());
+    let kept = SavingsAggregate {
+        total: SavingsBucket {
+            events: 5,
+            original_tokens: 500,
+            compacted_tokens: 200,
+            tokens_saved: 300,
+            cost_saved_usd: 0.5,
+        },
+        ..Default::default()
+    };
+    inner
+        .put_as(
+            SAVINGS_COLLECTION,
+            SAVINGS_DOC_ID,
+            &StoredSavings::from_aggregate(&kept, 1),
+            Precondition::None,
+        )
+        .await?;
+    // A malformed bus reply (or a host-side failure) reaches the module as a
+    // Serialization-kind error from `get` itself, not from decoding the doc.
+    let faults = FaultPlan::new();
+    faults.fail_operation_nth("documents.get", 1, ErrorKind::Serialization);
+    let flaky = Arc::new(Failing::with_plan(Arc::clone(&inner), faults));
+    let savings = Savings::new();
+    savings.state.lock().await.docs = Some(flaky);
+
+    savings.record(None, &req(200, 100)).await;
+
+    let body = inner
+        .get(SAVINGS_COLLECTION, SAVINGS_DOC_ID)
+        .await?
+        .ok_or("document kept")?
+        .doc;
+    assert_eq!(
+        body["total"]["tokens_saved"], 300,
+        "stored totals survive a failed read"
+    );
+    assert_eq!(body["total"]["events"], 5);
+    Ok(())
+}
